@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="UTF-8">
-    <title>CHEGG Card Game Variant – Mana Refresh & Hero Attack</title>
+    <title>CHEGG Card Game Variant – Biomes & Elemental Effects</title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -14,7 +14,7 @@
         text-align: center;
       }
       #gameContainer {
-        max-width: 1100px;
+        max-width: 1200px;
         margin: 0 auto;
         background: #fff;
         padding: 10px;
@@ -32,7 +32,7 @@
         background: #e9e9e9;
         margin-bottom: 5px;
       }
-      .battlefield, .hand {
+      .battlefield, .hand, .biomeZone {
         min-height: 80px;
         padding: 5px;
         border: 1px dashed #888;
@@ -71,12 +71,15 @@
       .info {
         font-size: 18px;
       }
+      .biomeZone {
+        font-style: italic;
+        text-align: center;
+      }
     </style>
   </head>
   <body>
     <div id="gameContainer">
-      <h1>CHEGG Card Game Variant – Mana Refresh & Hero Attack</h1>
-      
+      <h1>CHEGG Card Game Variant – Biomes & Elemental Effects</h1>
       <!-- Opponent Info -->
       <div class="section">
         <div class="area">
@@ -90,12 +93,15 @@
           </div>
         </div>
         <div class="area">
-          <div style="width:48%;">
+          <div style="width:32%;">
+            <strong>Opponent Biome</strong>
+            <div id="opponentBiome" class="biomeZone"></div>
+          </div>
+          <div style="width:32%;">
             <strong>Opponent Battlefield</strong>
-            <!-- Clicking here when there are no minions will attack the hero -->
             <div id="opponentBattlefield" class="battlefield"></div>
           </div>
-          <div style="width:48%;">
+          <div style="width:32%;">
             <strong>Opponent Hand</strong>
             <div id="opponentHand" class="hand"></div>
           </div>
@@ -115,11 +121,15 @@
           </div>
         </div>
         <div class="area">
-          <div style="width:48%;">
+          <div style="width:32%;">
+            <strong>Your Biome</strong>
+            <div id="playerBiome" class="biomeZone"></div>
+          </div>
+          <div style="width:32%;">
             <strong>Your Battlefield</strong>
             <div id="playerBattlefield" class="battlefield"></div>
           </div>
-          <div style="width:48%;">
+          <div style="width:32%;">
             <strong>Your Hand</strong>
             <div id="handContainer" class="hand"></div>
           </div>
@@ -142,27 +152,236 @@
       const MAX_MANA = 6;
       const STARTING_HP = 20;
       
-      // Card templates. Each minion with an ability includes an "ability" field.
+      // Card templates with new properties for element, strengths, and weaknesses.
       const cardTemplates = {
-        "Villager": { type: "hero", name: "Villager", cost: 0, attack: 0, hp: STARTING_HP },
-        "Zombie":   { type: "minion", name: "Zombie", cost: 1, attack: 1, hp: 1 },
-        "Creeper":  { type: "minion", name: "Creeper", cost: 1, attack: 1, hp: 1, ability: "explode" },
-        "Pig":      { type: "minion", name: "Pig", cost: 1, attack: 0, hp: 1, ability: "support" },
-        "Rabbit":   { type: "minion", name: "Rabbit", cost: 2, attack: 1, hp: 1, ability: "hop" },
-        "PufferFish": { type: "minion", name: "Puffer-Fish", cost: 2, attack: 1, hp: 1, ability: "splash" },
-        "IronGolem": { type: "minion", name: "Iron-Golem", cost: 2, attack: 2, hp: 3, ability: "sweep" },
-        "Frog":     { type: "minion", name: "Frog", cost: 2, attack: 0, hp: 2, ability: "pull" },
-        "Skeleton": { type: "minion", name: "Skeleton", cost: 3, attack: 3, hp: 2 },
-        "Blaze":    { type: "minion", name: "Blaze", cost: 3, attack: 3, hp: 2, ability: "ranged" },
-        "Phantom":  { type: "minion", name: "Phantom", cost: 3, attack: 2, hp: 1, ability: "shadow" },
-        "Enderman": { type: "minion", name: "Enderman", cost: 4, attack: 3, hp: 2, ability: "teleport" },
-        "Slime":    { type: "minion", name: "Slime", cost: 4, attack: 2, hp: 3, ability: "jump" },
-        "ShulkerBox": { type: "minion", name: "Shulker-Box", cost: 4, attack: 1, hp: 4, ability: "longshot" },
-        "Parrot":   { type: "minion", name: "Parrot", cost: 5, attack: 3, hp: 2, ability: "copy" },
-        "Cat":      { type: "minion", name: "Cat", cost: 5, attack: 0, hp: 2, ability: "manaBoost" },
-        "Sniffer":  { type: "minion", name: "Sniffer", cost: 5, attack: 2, hp: 2, ability: "disrupt" },
-        "Wither":   { type: "minion", name: "Wither", cost: 6, attack: 4, hp: 3, ability: "explosiveWither" },
-        "Reinforcement": { type: "spell", name: "Reinforcement", cost: 2, effect: "draw2" }
+        "Villager": { 
+          type: "hero", 
+          name: "Villager", 
+          cost: 0, 
+          attack: 0, 
+          hp: STARTING_HP 
+        },
+        "Zombie": { 
+          type: "minion", 
+          name: "Zombie", 
+          cost: 1, 
+          attack: 1, 
+          hp: 1, 
+          element: "undead", 
+          strengths: [], 
+          weaknesses: ["fire"] 
+        },
+        "Creeper": { 
+          type: "minion", 
+          name: "Creeper", 
+          cost: 1, 
+          attack: 1, 
+          hp: 1, 
+          element: "undead", 
+          strengths: [], 
+          weaknesses: ["water"],
+          ability: "explode" 
+        },
+        "Pig": { 
+          type: "minion", 
+          name: "Pig", 
+          cost: 1, 
+          attack: 0, 
+          hp: 1, 
+          element: "beast", 
+          strengths: [], 
+          weaknesses: [],
+          ability: "support" 
+        },
+        "Rabbit": { 
+          type: "minion", 
+          name: "Rabbit", 
+          cost: 2, 
+          attack: 1, 
+          hp: 1, 
+          element: "beast", 
+          strengths: [], 
+          weaknesses: [],
+          ability: "hop" 
+        },
+        "PufferFish": { 
+          type: "minion", 
+          name: "Puffer-Fish", 
+          cost: 2, 
+          attack: 1, 
+          hp: 1, 
+          element: "water", 
+          strengths: ["fire"], 
+          weaknesses: ["electric"],
+          ability: "splash" 
+        },
+        "IronGolem": { 
+          type: "minion", 
+          name: "Iron-Golem", 
+          cost: 2, 
+          attack: 2, 
+          hp: 3, 
+          element: "earth", 
+          strengths: ["undead"], 
+          weaknesses: ["water"],
+          ability: "sweep" 
+        },
+        "Frog": { 
+          type: "minion", 
+          name: "Frog", 
+          cost: 2, 
+          attack: 0, 
+          hp: 2, 
+          element: "water", 
+          strengths: [], 
+          weaknesses: ["fire"],
+          ability: "pull" 
+        },
+        "Skeleton": { 
+          type: "minion", 
+          name: "Skeleton", 
+          cost: 3, 
+          attack: 3, 
+          hp: 2, 
+          element: "undead", 
+          strengths: [], 
+          weaknesses: ["fire"] 
+        },
+        "Blaze": { 
+          type: "minion", 
+          name: "Blaze", 
+          cost: 3, 
+          attack: 3, 
+          hp: 2, 
+          element: "fire", 
+          strengths: ["undead"], 
+          weaknesses: ["water"],
+          ability: "ranged" 
+        },
+        "Phantom": { 
+          type: "minion", 
+          name: "Phantom", 
+          cost: 3, 
+          attack: 2, 
+          hp: 1, 
+          element: "air", 
+          strengths: [], 
+          weaknesses: ["earth"],
+          ability: "shadow" 
+        },
+        "Enderman": { 
+          type: "minion", 
+          name: "Enderman", 
+          cost: 4, 
+          attack: 3, 
+          hp: 2, 
+          element: "dark", 
+          strengths: [], 
+          weaknesses: ["light"],
+          ability: "teleport" 
+        },
+        "Slime": { 
+          type: "minion", 
+          name: "Slime", 
+          cost: 4, 
+          attack: 2, 
+          hp: 3, 
+          element: "earth", 
+          strengths: [], 
+          weaknesses: ["fire"],
+          ability: "jump" 
+        },
+        "ShulkerBox": { 
+          type: "minion", 
+          name: "Shulker-Box", 
+          cost: 4, 
+          attack: 1, 
+          hp: 4, 
+          element: "metal", 
+          strengths: [], 
+          weaknesses: ["earth"],
+          ability: "longshot" 
+        },
+        "Parrot": { 
+          type: "minion", 
+          name: "Parrot", 
+          cost: 5, 
+          attack: 3, 
+          hp: 2, 
+          element: "air", 
+          strengths: [], 
+          weaknesses: ["electric"],
+          ability: "copy" 
+        },
+        "Cat": { 
+          type: "minion", 
+          name: "Cat", 
+          cost: 5, 
+          attack: 0, 
+          hp: 2, 
+          element: "beast", 
+          strengths: [], 
+          weaknesses: [],
+          ability: "manaBoost" 
+        },
+        "Sniffer": { 
+          type: "minion", 
+          name: "Sniffer", 
+          cost: 5, 
+          attack: 2, 
+          hp: 2, 
+          element: "beast", 
+          strengths: [], 
+          weaknesses: [],
+          ability: "disrupt" 
+        },
+        "Wither": { 
+          type: "minion", 
+          name: "Wither", 
+          cost: 6, 
+          attack: 4, 
+          hp: 3, 
+          element: "undead", 
+          strengths: ["beast"], 
+          weaknesses: ["fire"],
+          ability: "explosiveWither" 
+        },
+        "Reinforcement": { 
+          type: "spell", 
+          name: "Reinforcement", 
+          cost: 2, 
+          effect: "draw2" 
+        },
+        "Lightning": { 
+          type: "spell", 
+          name: "Lightning", 
+          cost: 3, 
+          effect: "lightning", 
+          damage: 3 
+        },
+        "Heal": { 
+          type: "spell", 
+          name: "Heal", 
+          cost: 3, 
+          effect: "heal", 
+          amount: 3 
+        },
+        "Forest": { 
+          type: "biome", 
+          name: "Forest", 
+          cost: 3, 
+          effect: "boost", 
+          elementTarget: "beast", 
+          bonus: 1 
+        },
+        "Desert": { 
+          type: "biome", 
+          name: "Desert", 
+          cost: 3, 
+          effect: "weaken", 
+          elementTarget: "water", 
+          penalty: 1 
+        }
       };
       
       /***** GAME STATE *****/
@@ -174,6 +393,7 @@
         deck: [],
         hand: [],
         battlefield: [],
+        biome: null,
         currentMana: 0,
         maxMana: 0
       };
@@ -183,11 +403,12 @@
         deck: [],
         hand: [],
         battlefield: [],
+        biome: null,
         currentMana: 0,
         maxMana: 0
       };
       
-      // For selecting a minion for attack or ability activation.
+      // For selecting a minion for attack/ability activation.
       let selectedAttacker = null;
       
       /***** INITIALIZATION *****/
@@ -195,12 +416,14 @@
         turnNumber = 1;
         currentTurn = "player";
         selectedAttacker = null;
+        player.biome = null;
+        ai.biome = null;
         
         // Create heroes.
         player.hero = Object.assign({}, cardTemplates["Villager"]);
         ai.hero = Object.assign({}, cardTemplates["Villager"]);
         
-        // Build decks – each deck gets a variety of cards.
+        // Build decks.
         player.deck = buildDeck();
         ai.deck = buildDeck();
         
@@ -208,7 +431,7 @@
         player.deck.sort(() => Math.random() - 0.5);
         ai.deck.sort(() => Math.random() - 0.5);
         
-        // Clear hands and battlefields.
+        // Clear hands, battlefields.
         player.hand = [];
         ai.hand = [];
         player.battlefield = [];
@@ -220,7 +443,7 @@
           drawCard("ai");
         }
         
-        // Initialize mana starting at 1.
+        // Initialize mana (starting at 1).
         player.maxMana = 1;
         player.currentMana = 1;
         ai.maxMana = 1;
@@ -237,7 +460,8 @@
           "Zombie": 6, "Creeper": 3, "Pig": 3, "Rabbit": 2, "PufferFish": 2,
           "IronGolem": 2, "Frog": 2, "Skeleton": 3, "Blaze": 2, "Phantom": 2,
           "Enderman": 2, "Slime": 2, "ShulkerBox": 2, "Parrot": 1, "Cat": 1,
-          "Sniffer": 1, "Wither": 1, "Reinforcement": 3
+          "Sniffer": 1, "Wither": 1, "Reinforcement": 3, "Lightning": 2,
+          "Heal": 2, "Forest": 1, "Desert": 1
         };
         for (let card in counts) {
           for (let i = 0; i < counts[card]; i++) {
@@ -264,11 +488,9 @@
           turnNumber++;
           // Ramp player's mana.
           player.maxMana = Math.min(player.maxMana + 1, MAX_MANA);
-          // Cat bonus: if a Cat is in play, add one extra (but still capped).
           if (player.battlefield.some(m => m.name === "Cat")) {
             player.maxMana = Math.min(player.maxMana + 1, MAX_MANA);
           }
-          // Refresh mana.
           player.currentMana = player.maxMana;
           drawCard("player");
           logMessage("Your turn. You have " + player.currentMana + " mana.");
@@ -280,7 +502,6 @@
           drawCard("ai");
           logMessage("AI turn. AI has " + ai.currentMana + " mana.");
           updateUI();
-          // Delay AI action for visibility.
           setTimeout(aiTurn, 1000);
         }
       }
@@ -288,7 +509,7 @@
       function endTurn() {
         if (currentTurn !== "player") return;
         logMessage("Ending your turn.");
-        // Reset player's minion flags.
+        // Reset flags.
         player.battlefield.forEach(m => { m.attacked = false; m.abilityUsed = false; });
         currentTurn = "ai";
         updateUI();
@@ -306,7 +527,12 @@
         }
         player.currentMana -= cardTemplate.cost;
         player.hand.splice(index, 1);
-        if (cardTemplate.type === "minion") {
+        // If the card is a biome, set it as active.
+        if (cardTemplate.type === "biome") {
+          player.biome = Object.assign({}, cardTemplate);
+          logMessage("You set your biome to " + cardTemplate.name + ".");
+        }
+        else if (cardTemplate.type === "minion") {
           let minion = Object.assign({}, cardTemplate);
           minion.currentHP = cardTemplate.hp;
           minion.attacked = false;
@@ -322,6 +548,22 @@
             drawCard("player");
             drawCard("player");
             logMessage("You cast Reinforcement and drew 2 cards.");
+          } else if (cardTemplate.effect === "lightning") {
+            // Lightning: if opponent has minions, deal damage to the first one; else, to hero.
+            if (ai.battlefield.length > 0) {
+              ai.battlefield[0].currentHP -= cardTemplate.damage;
+              logMessage("You cast Lightning on " + ai.battlefield[0].name + " for " + cardTemplate.damage + " damage.");
+              if (ai.battlefield[0].currentHP <= 0) {
+                logMessage(ai.battlefield[0].name + " was destroyed.");
+                ai.battlefield.shift();
+              }
+            } else {
+              ai.hero.hp -= cardTemplate.damage;
+              logMessage("You cast Lightning on the opponent's Villager for " + cardTemplate.damage + " damage.");
+            }
+          } else if (cardTemplate.effect === "heal") {
+            player.hero.hp += cardTemplate.amount;
+            logMessage("You cast Heal and restored " + cardTemplate.amount + " HP to your Villager.");
           }
         }
         updateUI();
@@ -335,7 +577,7 @@
           return;
         }
         selectedAttacker = { minion: attacker, index: index };
-        logMessage("Selected " + attacker.name + ". Click an enemy minion to attack or click the opponent's battlefield to attack the hero if no enemy units remain.");
+        logMessage("Selected " + attacker.name + ". Click an enemy minion to attack or click the opponent's battlefield (if no enemy minions remain) to attack the hero.");
         updateUI();
       }
       
@@ -364,9 +606,21 @@
         if (!selectedAttacker) return;
         let attacker = selectedAttacker.minion;
         let defender = ai.battlefield[aiIndex];
-        defender.currentHP -= attacker.attack;
-        attacker.currentHP -= defender.attack;
-        logMessage("Your " + attacker.name + " attacked opponent's " + defender.name + ".");
+        // Calculate effective attack considering biomes.
+        let attackerDamage = getEffectiveAttack(attacker, "player");
+        let defenderDamage = getEffectiveAttack(defender, "ai");
+        // Apply elemental multipliers.
+        let multiplier = 1;
+        if (attacker.element && defender.weaknesses && defender.weaknesses.includes(attacker.element)) {
+          multiplier = 2;
+        } else if (attacker.element && defender.strengths && defender.strengths.includes(attacker.element)) {
+          multiplier = 0.5;
+        }
+        let damageToDefender = Math.floor(attackerDamage * multiplier);
+        let damageToAttacker = defenderDamage; // For simplicity, defender deals full damage.
+        defender.currentHP -= damageToDefender;
+        attacker.currentHP -= damageToAttacker;
+        logMessage("Your " + attacker.name + " attacked " + defender.name + " (Damage: " + damageToDefender + " vs " + damageToAttacker + ").");
         attacker.attacked = true;
         if (defender.currentHP <= 0) {
           logMessage("Opponent's " + defender.name + " was destroyed.");
@@ -498,23 +752,40 @@
           default:
             logMessage("No ability to activate.");
         }
-        // Remove any enemy minions that have died.
         opponent.battlefield = opponent.battlefield.filter(m => m.currentHP > 0);
+      }
+      
+      /***** BIOME EFFECTS & EFFECTIVE ATTACK *****/
+      function getEffectiveAttack(unit, owner) {
+        let effective = unit.attack;
+        let biome = (owner === "player") ? player.biome : ai.biome;
+        if (biome) {
+          if (biome.effect === "boost" && unit.element === biome.elementTarget) {
+            effective += biome.bonus;
+          } else if (biome.effect === "weaken" && unit.element === biome.elementTarget) {
+            effective = Math.max(0, effective - biome.penalty);
+          }
+        }
+        return effective;
       }
       
       /***** AI TURN – SINGLE ACTION *****/
       function aiTurn() {
-        // AI will take one action per turn.
+        // AI takes one action per turn.
         let actionTaken = false;
         
-        // 1. Try to play a card from hand.
+        // 1. Try to play a card.
         for (let i = 0; i < ai.hand.length; i++) {
           let cardKey = ai.hand[i];
           let cardTemplate = cardTemplates[cardKey];
           if (ai.currentMana >= cardTemplate.cost) {
             ai.currentMana -= cardTemplate.cost;
             ai.hand.splice(i, 1);
-            if (cardTemplate.type === "minion") {
+            if (cardTemplate.type === "biome") {
+              ai.biome = Object.assign({}, cardTemplate);
+              logMessage("AI sets its biome to " + cardTemplate.name + ".");
+            }
+            else if (cardTemplate.type === "minion") {
               let minion = Object.assign({}, cardTemplate);
               minion.currentHP = cardTemplate.hp;
               minion.attacked = false;
@@ -526,6 +797,21 @@
                 drawCard("ai");
                 drawCard("ai");
                 logMessage("AI cast Reinforcement.");
+              } else if (cardTemplate.effect === "lightning") {
+                if (player.battlefield.length > 0) {
+                  player.battlefield[0].currentHP -= cardTemplate.damage;
+                  logMessage("AI cast Lightning on your " + player.battlefield[0].name + " for " + cardTemplate.damage + " damage.");
+                  if (player.battlefield[0].currentHP <= 0) {
+                    logMessage("Your " + player.battlefield[0].name + " was destroyed.");
+                    player.battlefield.shift();
+                  }
+                } else {
+                  player.hero.hp -= cardTemplate.damage;
+                  logMessage("AI cast Lightning on your Villager for " + cardTemplate.damage + " damage.");
+                }
+              } else if (cardTemplate.effect === "heal") {
+                ai.hero.hp += cardTemplate.amount;
+                logMessage("AI cast Heal and restored " + cardTemplate.amount + " HP to its Villager.");
               }
             }
             actionTaken = true;
@@ -540,16 +826,26 @@
             if (!minion.attacked) {
               if (player.battlefield.length > 0) {
                 let defender = player.battlefield[0];
-                defender.currentHP -= minion.attack;
-                minion.currentHP -= defender.attack;
-                logMessage("AI's " + minion.name + " attacked your " + defender.name + ".");
+                let attackerDamage = getEffectiveAttack(minion, "ai");
+                let defenderDamage = getEffectiveAttack(defender, "player");
+                let multiplier = 1;
+                if (minion.element && defender.weaknesses && defender.weaknesses.includes(minion.element)) {
+                  multiplier = 2;
+                } else if (minion.element && defender.strengths && defender.strengths.includes(minion.element)) {
+                  multiplier = 0.5;
+                }
+                let damageToDefender = Math.floor(attackerDamage * multiplier);
+                let damageToAttacker = defenderDamage;
+                defender.currentHP -= damageToDefender;
+                minion.currentHP -= damageToAttacker;
+                logMessage("AI's " + minion.name + " attacked your " + defender.name + " (Damage: " + damageToDefender + " vs " + damageToAttacker + ").");
                 if (defender.currentHP <= 0) {
                   logMessage("Your " + defender.name + " was destroyed.");
                   player.battlefield.shift();
                 }
               } else {
-                player.hero.hp -= minion.attack;
-                logMessage("AI's " + minion.name + " attacked your Villager for " + minion.attack + " damage.");
+                player.hero.hp -= getEffectiveAttack(minion, "ai");
+                logMessage("AI's " + minion.name + " attacked your Villager for " + getEffectiveAttack(minion, "ai") + " damage.");
               }
               minion.attacked = true;
               actionTaken = true;
@@ -570,9 +866,8 @@
           }
         }
         
-        // End AI turn after one action.
+        // End AI turn.
         checkVictory();
-        // Reset flags.
         ai.battlefield.forEach(m => { m.attacked = false; m.abilityUsed = false; });
         player.battlefield.forEach(m => { m.attacked = false; m.abilityUsed = false; });
         currentTurn = "player";
@@ -606,12 +901,20 @@
         document.getElementById("playerMana").innerText = player.currentMana + " / " + player.maxMana;
         document.getElementById("opponentMana").innerText = ai.currentMana + " / " + ai.maxMana;
         
+        // Update biome zones.
+        let playerBiomeDiv = document.getElementById("playerBiome");
+        playerBiomeDiv.innerText = player.biome ? player.biome.name : "None";
+        let opponentBiomeDiv = document.getElementById("opponentBiome");
+        opponentBiomeDiv.innerText = ai.biome ? ai.biome.name : "None";
+        
+        // Update battlefields.
         let playerBF = document.getElementById("playerBattlefield");
         playerBF.innerHTML = "";
         player.battlefield.forEach((minion, index) => {
+          let effectiveAttack = getEffectiveAttack(minion, "player");
           let div = document.createElement("div");
           div.className = "minion" + (selectedAttacker && selectedAttacker.index === index ? " selected" : "");
-          div.innerText = minion.name + "\n" + minion.attack + "/" + minion.currentHP;
+          div.innerText = minion.name + "\n" + effectiveAttack + "/" + minion.currentHP;
           div.onclick = () => selectAttacker(index);
           playerBF.appendChild(div);
         });
@@ -619,14 +922,15 @@
         let opponentBF = document.getElementById("opponentBattlefield");
         opponentBF.innerHTML = "";
         ai.battlefield.forEach((minion, index) => {
+          let effectiveAttack = getEffectiveAttack(minion, "ai");
           let div = document.createElement("div");
           div.className = "minion";
-          div.innerText = minion.name + "\n" + minion.attack + "/" + minion.currentHP;
-          // When clicking on an enemy minion, if a player minion is selected, attack it.
+          div.innerText = minion.name + "\n" + effectiveAttack + "/" + minion.currentHP;
           div.onclick = () => { if(selectedAttacker) attackMinion(index); };
           opponentBF.appendChild(div);
         });
         
+        // Update hands.
         let handContainer = document.getElementById("handContainer");
         handContainer.innerHTML = "";
         player.hand.forEach((cardKey, index) => {
@@ -648,6 +952,7 @@
           opponentHand.appendChild(div);
         });
         
+        // Show Activate Ability button if applicable.
         if (selectedAttacker && selectedAttacker.minion.ability && !selectedAttacker.minion.abilityUsed) {
           document.getElementById("activateAbilityButton").style.display = "inline-block";
         } else {
@@ -659,20 +964,20 @@
         document.getElementById("message").innerText = msg;
       }
       
-      // Clicking on the opponentBattlefield container (outside of any minion) will attack the hero if there are no minions.
-      document.getElementById("opponentBattlefield").addEventListener("click", function(e) {
-        // Only trigger if the container itself was clicked (i.e. not a child element)
-        if (e.target === this && selectedAttacker) {
+      // If opponent battlefield is clicked (and no enemy minions exist), treat it as an attack on hero.
+      document.getElementById("opponentBattlefield").onclick = function(e) {
+        if (ai.battlefield.length === 0 && selectedAttacker) {
           attackHero();
         }
-      });
+      }
       
-      // Also allow clicking on the opponent's area header to attack hero.
-      document.getElementById("opponentArea").addEventListener("click", function(e) {
-        if ((e.target.id === "opponentHeroHP" || e.target.parentNode.id === "opponentArea") && selectedAttacker) {
-          attackHero();
+      document.getElementById("opponentArea").onclick = function(e) {
+        if ((e.target.id === "opponentHeroHP" || e.target.parentNode.id === "opponentArea") && ai.battlefield.length === 0) {
+          if (selectedAttacker) {
+            attackHero();
+          }
         }
-      });
+      }
       
       window.onload = initGame;
     </script>
