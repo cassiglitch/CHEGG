@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="UTF-8">
-    <title>CHEGG Card Game Variant – AI Single Action Turn</title>
+    <title>CHEGG Card Game Variant – AI Ramp & Single Action</title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -75,7 +75,7 @@
   </head>
   <body>
     <div id="gameContainer">
-      <h1>CHEGG Card Game Variant – AI Single Action Turn</h1>
+      <h1>CHEGG Card Game Variant – AI Ramp & Single Action</h1>
       <!-- Opponent Info -->
       <div class="section">
         <div class="area">
@@ -185,7 +185,7 @@
         maxMana: 0
       };
       
-      // For selecting a minion for attack/ability activation.
+      // For selecting a minion for attack or ability activation.
       let selectedAttacker = null;
       
       /***** INITIALIZATION *****/
@@ -218,11 +218,11 @@
           drawCard("ai");
         }
         
-        // Initialize mana.
-        player.maxMana = 0;
-        player.currentMana = 0;
-        ai.maxMana = 0;
-        ai.currentMana = 0;
+        // Initialize mana (starting at 1).
+        player.maxMana = 1;
+        player.currentMana = 1;
+        ai.maxMana = 1;
+        ai.currentMana = 1;
         
         updateUI();
         logMessage("Game started! Your turn begins.");
@@ -260,7 +260,7 @@
         currentTurn = side;
         if (side === "player") {
           turnNumber++;
-          // Increase mana and apply Cat bonus.
+          // Increase player's mana ramping (up to MAX_MANA); apply Cat bonus if applicable.
           player.maxMana = Math.min(player.maxMana + 1, MAX_MANA);
           if (player.battlefield.some(m => m.name === "Cat")) {
             player.maxMana = Math.min(player.maxMana + 1, MAX_MANA);
@@ -270,11 +270,13 @@
           logMessage("Your turn. You have " + player.currentMana + " mana.");
           updateUI();
         } else {
+          // Ramp AI mana.
           ai.maxMana = Math.min(ai.maxMana + 1, MAX_MANA);
           ai.currentMana = ai.maxMana;
           drawCard("ai");
           logMessage("AI turn. AI has " + ai.currentMana + " mana.");
           updateUI();
+          // Delay AI action for visibility.
           setTimeout(aiTurn, 1000);
         }
       }
@@ -282,10 +284,11 @@
       function endTurn() {
         if (currentTurn !== "player") return;
         logMessage("Ending your turn.");
-        // Reset attack and ability flags.
+        // Reset player's minion flags.
         player.battlefield.forEach(m => { m.attacked = false; m.abilityUsed = false; });
         currentTurn = "ai";
         updateUI();
+        // Start AI turn after a short delay.
         setTimeout(aiTurn, 1000);
       }
       
@@ -495,11 +498,12 @@
         opponent.battlefield = opponent.battlefield.filter(m => m.currentHP > 0);
       }
       
-      /***** AI TURN LOGIC – ONE ACTION PER TURN *****/
+      /***** AI TURN – SINGLE ACTION *****/
       function aiTurn() {
-        // Use a step-by-step approach: check if AI can play a card, else try an attack, else try ability.
+        // AI will take one action per turn:
         let actionTaken = false;
-        // 1. Attempt to play a card.
+        
+        // 1. Try to play a card from hand.
         for (let i = 0; i < ai.hand.length; i++) {
           let cardKey = ai.hand[i];
           let cardTemplate = cardTemplates[cardKey];
@@ -524,12 +528,13 @@
             break;
           }
         }
-        // 2. If no card was played, attempt an attack with the first available minion.
+        
+        // 2. If no card is played, try to attack with a minion.
         if (!actionTaken) {
           for (let i = 0; i < ai.battlefield.length; i++) {
             let minion = ai.battlefield[i];
             if (!minion.attacked) {
-              // Attack enemy minions first.
+              // Attack enemy minions first; if none, attack hero.
               if (player.battlefield.length > 0) {
                 let defender = player.battlefield[0];
                 defender.currentHP -= minion.attack;
@@ -549,7 +554,8 @@
             }
           }
         }
-        // 3. If no attack, try to activate an ability.
+        
+        // 3. If no card played and no attack available, try to activate an ability.
         if (!actionTaken) {
           for (let i = 0; i < ai.battlefield.length; i++) {
             let minion = ai.battlefield[i];
@@ -560,12 +566,13 @@
             }
           }
         }
+        
         // End AI turn after one action.
         checkVictory();
         ai.battlefield.forEach(m => { m.attacked = false; m.abilityUsed = false; });
         player.battlefield.forEach(m => { m.attacked = false; m.abilityUsed = false; });
         currentTurn = "player";
-        // Increase player's mana (apply Cat bonus) and draw a card.
+        // Ramp up player's mana.
         player.maxMana = Math.min(player.maxMana + 1, MAX_MANA);
         if (player.battlefield.some(m => m.name === "Cat")) {
           player.maxMana = Math.min(player.maxMana + 1, MAX_MANA);
