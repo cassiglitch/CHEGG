@@ -2,452 +2,489 @@
 <html>
   <head>
     <meta charset="UTF-8">
-    <title>CHEGG – Fully Functional Version (Simplified)</title>
+    <title>CHEGG Card Game Variant</title>
     <style>
       body {
         font-family: Arial, sans-serif;
+        background: #f4f4f4;
+        margin: 0;
+        padding: 10px;
+      }
+      h1 {
         text-align: center;
-        margin: 10px;
       }
       #gameContainer {
+        max-width: 900px;
+        margin: 0 auto;
+        background: #fff;
+        padding: 10px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      }
+      .section {
+        margin-bottom: 15px;
+      }
+      #opponentArea, #playerArea {
         display: flex;
-        justify-content: center;
-        margin-bottom: 20px;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px;
+        border: 1px solid #ccc;
+        background: #e9e9e9;
       }
-      #boardContainer, #sidePanel {
-        margin: 10px;
+      .battlefield {
+        min-height: 80px;
+        padding: 5px;
+        border: 1px dashed #888;
+        background: #fff;
+        margin: 5px 0;
       }
-      table {
-        border-collapse: collapse;
-        margin: auto;
-      }
-      td {
-        width: 50px;
-        height: 50px;
-        border: 1px solid #444;
-        vertical-align: middle;
-        text-align: center;
-        cursor: pointer;
-        font-weight: bold;
-        position: relative;
-      }
-      /* Checkerboard and spawn zone styles */
-      .light { background-color: #ddd; }
-      .dark { background-color: #aaa; }
-      .aispawn { background-color: #fdd !important; }
-      .playerspawn { background-color: #ddf !important; }
-      /* Highlight for valid moves or selections */
-      .highlight { outline: 3px solid yellow; }
-      /* Hand card styling */
-      .card {
+      .card, .minion {
         display: inline-block;
         border: 1px solid #333;
-        padding: 5px 10px;
+        border-radius: 4px;
+        background: #fafafa;
+        padding: 5px;
         margin: 5px;
         cursor: pointer;
-        background: #eee;
       }
-      .selectedCard {
-        background: #ff9;
-        border-color: #f80;
+      .selected {
+        border: 2px solid #f80;
+        background: #fffae6;
+      }
+      #handContainer {
+        padding: 5px;
+        border: 1px solid #888;
+        background: #fff;
+        min-height: 100px;
       }
       #message {
         margin-top: 10px;
-        font-size: 18px;
+        padding: 5px;
+        background: #eef;
+        border: 1px solid #99f;
+      }
+      #controls {
+        text-align: center;
+        margin-top: 10px;
       }
       button {
-        margin-top: 10px;
-        padding: 6px 12px;
+        margin: 5px;
+        padding: 8px 16px;
         font-size: 16px;
       }
-      #manaDisplay {
+      .info {
         font-size: 18px;
-        margin-bottom: 10px;
       }
     </style>
   </head>
   <body>
-    <h1>CHEGG – Fully Functional (Simplified) Version</h1>
     <div id="gameContainer">
-      <div id="boardContainer"></div>
-      <div id="sidePanel">
-        <div id="manaDisplay"></div>
-        <h3>Your Hand</h3>
-        <div id="handContainer"></div>
-        <button id="endTurnBtn" onclick="endPlayerTurn()">End Turn</button>
+      <h1>CHEGG Card Game Variant</h1>
+      <!-- Opponent Info -->
+      <div id="opponentArea" class="section">
+        <div>
+          <strong>Opponent Villager</strong><br>
+          <span id="opponentHeroHP" class="info"></span>
+        </div>
+        <div>
+          <strong>Opponent Battlefield</strong>
+          <div id="opponentBattlefield" class="battlefield"></div>
+        </div>
+        <div>
+          <strong>Opponent Mana</strong><br>
+          <span id="opponentMana" class="info"></span>
+        </div>
       </div>
+      
+      <!-- Player Info -->
+      <div id="playerArea" class="section">
+        <div>
+          <strong>Your Villager</strong><br>
+          <span id="playerHeroHP" class="info"></span>
+        </div>
+        <div>
+          <strong>Your Battlefield</strong>
+          <div id="playerBattlefield" class="battlefield"></div>
+        </div>
+        <div>
+          <strong>Your Mana</strong><br>
+          <span id="playerMana" class="info"></span>
+        </div>
+      </div>
+      
+      <!-- Player Hand -->
+      <div class="section">
+        <strong>Your Hand</strong>
+        <div id="handContainer"></div>
+      </div>
+      
+      <!-- Controls -->
+      <div id="controls" class="section">
+        <button onclick="endTurn()" id="endTurnButton">End Turn</button>
+        <button onclick="initGame()">Restart Game</button>
+      </div>
+      
+      <!-- Message Log -->
+      <div id="message" class="section">Welcome to CHEGG Card Game!</div>
     </div>
-    <div id="message"></div>
-    <button onclick="initGame()">Restart Game</button>
+    
     <script>
-      /***** GLOBALS & CONFIGURATION *****/
-      const ROWS = 8, COLS = 10;
+      /***** GAME CONFIGURATION *****/
       const MAX_MANA = 6;
-      // For simplicity we include two minion types:
-      // Villager: the King (must be protected)
-      // Zombie: a basic unit that costs 1 mana and can move/attack one cell (all moves are adjacent)
-      const minionTypes = {
-        "Villager": { name: "Villager", cost: 0, symbol: "V", color: { player: "blue", ai: "red" } },
-        "Zombie": { name: "Zombie", cost: 1, symbol: "Z", color: { player: "green", ai: "purple" } }
+      const STARTING_HP = 20;
+      
+      // Define card templates
+      const cardTemplates = {
+        "Villager": { type: "hero", name: "Villager", cost: 0, attack: 0, hp: STARTING_HP },
+        "Zombie":   { type: "minion", name: "Zombie", cost: 1, attack: 1, hp: 1 },
+        "Skeleton": { type: "minion", name: "Skeleton", cost: 3, attack: 3, hp: 2 },
+        "Reinforcement": { type: "spell", name: "Reinforcement", cost: 2, effect: "draw2" }
       };
-      // Game state
-      let board = []; // 2D array of cells; each cell is either null or a minion object
+      
+      /***** GAME STATE *****/
+      let currentTurn = "player"; // or "ai"
+      let turnNumber = 1;
+      
       let player = {
-        mana: 1,
-        deck: [], // will be filled with a predetermined set of cards (minion types)
-        hand: [],
-        spawnZone: { startRow: ROWS - 2, endRow: ROWS - 1 },
-        villagerPos: null
-      };
-      let ai = {
-        mana: 1,
+        hero: null,
         deck: [],
         hand: [],
-        spawnZone: { startRow: 0, endRow: 1 },
-        villagerPos: null
+        battlefield: [],
+        currentMana: 0,
+        maxMana: 0
       };
-      let currentTurn = "player"; // "player" or "ai"
-      // Selection state
-      let selectedCard = null;  // when spawning: holds a card (minion type) from hand
-      let selectedMinionPos = null; // when moving/attacking: {row, col}
       
-      /***** INITIALIZATION FUNCTIONS *****/
+      let ai = {
+        hero: null,
+        deck: [],
+        hand: [],
+        battlefield: [],
+        currentMana: 0,
+        maxMana: 0
+      };
+      
+      // For selecting an attacker during player's combat phase
+      let selectedAttacker = null;
+      
+      /***** INITIALIZATION *****/
       function initGame() {
-        // Reset board
-        board = [];
-        for (let r = 0; r < ROWS; r++) {
-          board[r] = [];
-          for (let c = 0; c < COLS; c++) {
-            board[r][c] = null;
-          }
-        }
-        // Reset players’ mana and decks
-        player.mana = 1;
-        ai.mana = 1;
-        player.deck = createDeck(["Zombie"], 10); // 10 Zombies in deck
-        ai.deck = createDeck(["Zombie"], 10);
+        // Reset turn and state
+        turnNumber = 1;
+        currentTurn = "player";
+        selectedAttacker = null;
+        
+        // Create hero for both sides
+        player.hero = Object.assign({}, cardTemplates["Villager"]);
+        ai.hero = Object.assign({}, cardTemplates["Villager"]);
+        
+        // Build decks (for simplicity, each deck will have 10 Zombies, 5 Skeletons, 3 Reinforcement)
+        player.deck = buildDeck();
+        ai.deck = buildDeck();
+        
+        // Shuffle decks
+        player.deck.sort(() => Math.random() - 0.5);
+        ai.deck.sort(() => Math.random() - 0.5);
+        
+        // Clear hands and battlefields
         player.hand = [];
         ai.hand = [];
-        // Draw initial hand: 3 cards
-        for (let i = 0; i < 3; i++) {
+        player.battlefield = [];
+        ai.battlefield = [];
+        
+        // Draw initial hand (5 cards)
+        for (let i = 0; i < 5; i++) {
           drawCard("player");
           drawCard("ai");
         }
-        // Place Villagers (Kings) in spawn zones. Let the player choose via prompt
-        // For player: choose a column in bottom spawn zone row (ROWS-1)
-        let pCol = parseInt(prompt("Place your Villager: enter a column number between 0 and " + (COLS - 1), Math.floor(COLS/2)));
-        if (isNaN(pCol) || pCol < 0 || pCol >= COLS) pCol = Math.floor(COLS/2);
-        let pRow = ROWS - 1; // bottom row of player's spawn
-        let villager = { type: "Villager", owner: "player", hasMoved: false, hasAttacked: false };
-        board[pRow][pCol] = villager;
-        player.villagerPos = { row: pRow, col: pCol };
         
-        // For AI, pick a random column in top spawn zone row 0
-        let aiCol = Math.floor(Math.random() * COLS);
-        let aiRow = 0;
-        let aiVillager = { type: "Villager", owner: "ai", hasMoved: false, hasAttacked: false };
-        board[aiRow][aiCol] = aiVillager;
-        ai.villagerPos = { row: aiRow, col: aiCol };
+        // Initialize mana
+        player.maxMana = 0;
+        player.currentMana = 0;
+        ai.maxMana = 0;
+        ai.currentMana = 0;
         
-        // Set turn to player
-        currentTurn = "player";
-        selectedCard = null;
-        selectedMinionPos = null;
-        updateManaDisplay();
-        renderHand();
-        renderBoard();
-        setMessage("Your turn. Use a card from your hand to spawn a unit or click one of your minions to move/attack.");
+        updateUI();
+        logMessage("Game started! Your turn begins.");
+        startTurn("player");
       }
       
-      // Create a deck filled with given minion types (by key) with given count each (for simplicity, one type only here)
-      function createDeck(minionKeys, count) {
+      function buildDeck() {
         let deck = [];
-        for (let key of minionKeys) {
-          for (let i = 0; i < count; i++) {
-            deck.push(key);
-          }
+        for (let i = 0; i < 10; i++) {
+          deck.push("Zombie");
         }
-        // Shuffle deck
-        deck.sort(() => Math.random() - 0.5);
+        for (let i = 0; i < 5; i++) {
+          deck.push("Skeleton");
+        }
+        for (let i = 0; i < 3; i++) {
+          deck.push("Reinforcement");
+        }
         return deck;
       }
       
-      // Draw a card for the given owner if deck isn’t empty
-      function drawCard(owner) {
-        let p = (owner === "player") ? player : ai;
+      function drawCard(side) {
+        let p = (side === "player") ? player : ai;
         if (p.deck.length > 0) {
-          p.hand.push(p.deck.pop());
-        }
-      }
-      
-      /***** RENDERING FUNCTIONS *****/
-      function renderBoard() {
-        let html = "<table>";
-        for (let r = 0; r < ROWS; r++) {
-          html += "<tr>";
-          for (let c = 0; c < COLS; c++) {
-            let cellClass = ((r+c) % 2 === 0) ? "light" : "dark";
-            // Override for spawn zones:
-            if (r >= player.spawnZone.startRow && r <= player.spawnZone.endRow)
-              cellClass = "playerspawn";
-            if (r >= ai.spawnZone.startRow && r <= ai.spawnZone.endRow)
-              cellClass = "aispawn";
-            // Highlight if cell is a valid destination for a selected minion (if adjacent)
-            if (selectedMinionPos && isAdjacent(selectedMinionPos.row, selectedMinionPos.col, r, c)) {
-              cellClass += " highlight";
-            }
-            html += `<td data-row="${r}" data-col="${c}" class="${cellClass}" onclick="handleBoardClick(${r},${c})">`;
-            let cell = board[r][c];
-            if (cell) {
-              // Get symbol and color based on type and owner
-              let mType = minionTypes[cell.type];
-              let color = mType.color[cell.owner];
-              html += `<span style="color:${color};">${mType.symbol}</span>`;
-            }
-            html += "</td>";
-          }
-          html += "</tr>";
-        }
-        html += "</table>";
-        document.getElementById("boardContainer").innerHTML = html;
-      }
-      
-      function renderHand() {
-        let container = document.getElementById("handContainer");
-        container.innerHTML = "";
-        player.hand.forEach((card, index) => {
-          let mType = minionTypes[card];
-          let cardDiv = document.createElement("div");
-          cardDiv.className = "card" + (selectedCard === index ? " selectedCard" : "");
-          cardDiv.innerText = mType.name + " (Cost: " + mType.cost + ")";
-          cardDiv.onclick = function() { selectCard(index); };
-          container.appendChild(cardDiv);
-        });
-      }
-      
-      function updateManaDisplay() {
-        document.getElementById("manaDisplay").innerText = "Mana: " + player.mana + " / " + MAX_MANA;
-      }
-      
-      function setMessage(msg) {
-        document.getElementById("message").innerText = msg;
-      }
-      
-      /***** EVENT HANDLERS & GAME LOGIC *****/
-      // When the player selects a card from their hand (to spawn)
-      function selectCard(cardIndex) {
-        if (currentTurn !== "player") return;
-        selectedCard = (selectedCard === cardIndex) ? null : cardIndex;
-        selectedMinionPos = null; // cancel any minion selection
-        renderHand();
-        renderBoard();
-        if (selectedCard !== null) {
-          setMessage("Selected card: " + minionTypes[player.hand[selectedCard]].name + ". Now click on a cell in your spawn zone.");
+          let cardKey = p.deck.shift();
+          p.hand.push(cardKey);
         } else {
-          setMessage("Deselected card. You can choose a card or select one of your units to move/attack.");
+          logMessage(side + " has no cards left in the deck!");
         }
       }
       
-      // Check if two cells are adjacent (Manhattan distance 1 in any direction)
-      function isAdjacent(r1, c1, r2, c2) {
-        return (Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1 && !(r1 === r2 && c1 === c2));
+      /***** TURN MANAGEMENT *****/
+      function startTurn(side) {
+        currentTurn = side;
+        if (side === "player") {
+          turnNumber++;
+          // Increase mana (up to MAX_MANA)
+          player.maxMana = Math.min(player.maxMana + 1, MAX_MANA);
+          player.currentMana = player.maxMana;
+          drawCard("player");
+          logMessage("Your turn. You have " + player.currentMana + " mana.");
+          updateUI();
+        } else {
+          // AI turn
+          ai.maxMana = Math.min(ai.maxMana + 1, MAX_MANA);
+          ai.currentMana = ai.maxMana;
+          drawCard("ai");
+          logMessage("AI turn. AI has " + ai.currentMana + " mana.");
+          updateUI();
+          setTimeout(aiTurn, 1000);
+        }
       }
       
-      // Handle clicks on board cells: either spawn a minion or move/attack with a selected unit.
-      function handleBoardClick(r, c) {
+      function endTurn() {
         if (currentTurn !== "player") return;
-        let cell = board[r][c];
-        // If a card is selected, we are in spawn mode.
-        if (selectedCard !== null) {
-          // Only allow spawning in player's spawn zone and in an empty cell.
-          if (r >= player.spawnZone.startRow && r <= player.spawnZone.endRow && !cell) {
-            let cardType = player.hand[selectedCard];
-            let cost = minionTypes[cardType].cost;
-            if (player.mana < cost) {
-              setMessage("Not enough mana to spawn " + minionTypes[cardType].name + ".");
-              return;
-            }
-            player.mana -= cost;
-            updateManaDisplay();
-            // Place the minion on the board
-            board[r][c] = { type: cardType, owner: "player", hasMoved: false, hasAttacked: false };
-            // Remove card from hand
-            player.hand.splice(selectedCard, 1);
-            selectedCard = null;
-            renderHand();
-            renderBoard();
-            setMessage("Spawned " + minionTypes[cardType].name + ". Now you can select one of your units to move/attack, or end your turn.");
-            return;
-          } else {
-            setMessage("You must spawn in an empty cell within your spawn zone.");
-            return;
-          }
-        }
-        // If no card selected, allow selecting a player-owned minion to move/attack.
-        if (cell && cell.owner === "player") {
-          // Select this minion
-          selectedMinionPos = { row: r, col: c };
-          renderBoard();
-          setMessage("Selected your " + cell.type + ". Now click an adjacent cell to move (or attack if an enemy is there).");
-          return;
-        }
-        // If a minion is already selected and the clicked cell is adjacent, attempt move/attack.
-        if (selectedMinionPos && isAdjacent(selectedMinionPos.row, selectedMinionPos.col, r, c)) {
-          let selectedMinion = board[selectedMinionPos.row][selectedMinionPos.col];
-          // If target cell has an enemy, perform an attack
-          if (cell && cell.owner === "ai") {
-            // Attack: remove enemy minion. If enemy is Villager, game over.
-            board[r][c] = selectedMinion; // move attacker into enemy cell
-            board[selectedMinionPos.row][selectedMinionPos.col] = null;
-            selectedMinion.hasMoved = true;
-            renderBoard();
-            if (cell.type === "Villager") {
-              setMessage("You captured the enemy Villager! You win!");
-              currentTurn = "gameover";
-              return;
-            } else {
-              setMessage("You attacked an enemy " + cell.type + ".");
-            }
-          } else if (!cell) {
-            // Move to empty cell
-            board[r][c] = selectedMinion;
-            board[selectedMinionPos.row][selectedMinionPos.col] = null;
-            selectedMinion.hasMoved = true;
-            setMessage("Moved your " + selectedMinion.type + ".");
-          } else {
-            setMessage("Invalid move.");
-            return;
-          }
-          selectedMinionPos = null;
-          renderBoard();
-          return;
-        }
-      }
-      
-      // End turn button: finalizes player turn and triggers AI turn.
-      function endPlayerTurn() {
-        if (currentTurn !== "player") return;
-        // Reset any selection
-        selectedCard = null;
-        selectedMinionPos = null;
-        renderHand();
-        renderBoard();
-        // End player's turn: reset units’ moved/attacked flags for next turn.
+        logMessage("Ending your turn.");
+        // Reset minions’ attack status for next turn after combat phase ends.
+        player.battlefield.forEach(m => m.attacked = false);
         currentTurn = "ai";
-        setMessage("Ending your turn. AI is thinking...");
-        // Increase player's mana for next turn (if not already applied)
-        setTimeout(aiTurn, 1200);
+        updateUI();
+        setTimeout(aiTurn, 1000);
+      }
+      
+      /***** PLAYER ACTIONS *****/
+      
+      // Clicking on a card in hand to play it
+      function playCard(index) {
+        if (currentTurn !== "player") return;
+        let cardKey = player.hand[index];
+        let cardTemplate = cardTemplates[cardKey];
+        if (player.currentMana < cardTemplate.cost) {
+          logMessage("Not enough mana to play " + cardTemplate.name + ".");
+          return;
+        }
+        // Spend mana and remove card from hand
+        player.currentMana -= cardTemplate.cost;
+        player.hand.splice(index, 1);
+        if (cardTemplate.type === "minion") {
+          // Summon the minion onto the battlefield with its current HP and attack, and mark it as not having attacked yet.
+          let minion = Object.assign({}, cardTemplate);
+          minion.currentHP = cardTemplate.hp;
+          minion.attacked = false;
+          player.battlefield.push(minion);
+          logMessage("You summoned a " + minion.name + ".");
+        } else if (cardTemplate.type === "spell") {
+          // Spell effect – here we only implement "Reinforcement": draw 2 cards.
+          if (cardTemplate.effect === "draw2") {
+            drawCard("player");
+            drawCard("player");
+            logMessage("You cast Reinforcement and drew 2 cards.");
+          }
+        }
+        updateUI();
+      }
+      
+      // Clicking on a minion on player's battlefield to select it for attack.
+      function selectAttacker(index) {
+        if (currentTurn !== "player") return;
+        let attacker = player.battlefield[index];
+        if (attacker.attacked) {
+          logMessage("This minion has already attacked.");
+          return;
+        }
+        selectedAttacker = { minion: attacker, index: index };
+        logMessage("Selected " + attacker.name + " as attacker. Click on the opponent's hero or one of their minions to attack.");
+        updateUI();
+      }
+      
+      // When player clicks on opponent hero to attack
+      function attackHero() {
+        if (!selectedAttacker) return;
+        let attacker = selectedAttacker.minion;
+        ai.hero.hp -= attacker.attack;
+        attacker.attacked = true;
+        logMessage("Your " + attacker.name + " attacked the opponent's Villager for " + attacker.attack + " damage.");
+        selectedAttacker = null;
+        checkVictory();
+        updateUI();
+      }
+      
+      // When player clicks on an opponent minion to attack
+      function attackMinion(aiIndex) {
+        if (!selectedAttacker) return;
+        let attacker = selectedAttacker.minion;
+        let defender = ai.battlefield[aiIndex];
+        // Both deal damage simultaneously
+        defender.currentHP -= attacker.attack;
+        attacker.currentHP -= defender.attack;
+        logMessage("Your " + attacker.name + " attacked opponent's " + defender.name + ".");
+        attacker.attacked = true;
+        // Remove defender if its HP is 0 or less
+        if (defender.currentHP <= 0) {
+          logMessage("Opponent's " + defender.name + " was destroyed.");
+          ai.battlefield.splice(aiIndex, 1);
+        }
+        // Remove attacker if its HP is 0 or less
+        if (attacker.currentHP <= 0) {
+          logMessage("Your " + attacker.name + " was destroyed in combat.");
+          player.battlefield.splice(selectedAttacker.index, 1);
+        }
+        selectedAttacker = null;
+        checkVictory();
+        updateUI();
       }
       
       /***** AI TURN LOGIC *****/
       function aiTurn() {
-        // AI phase: increase mana (simulate increasing by 1 up to MAX_MANA)
-        ai.mana = Math.min(ai.mana + 1, MAX_MANA);
-        // Draw a card for AI
-        drawCard("ai");
-        // AI spawn: if it has a card in hand that it can afford, try to spawn in a random empty cell in its spawn zone.
+        // AI plays a card from hand if possible
         for (let i = 0; i < ai.hand.length; i++) {
-          let cardType = ai.hand[i];
-          let cost = minionTypes[cardType].cost;
-          if (ai.mana >= cost) {
-            // Find empty cell in AI spawn zone (rows 0 and 1)
-            let possible = [];
-            for (let r = ai.spawnZone.startRow; r <= ai.spawnZone.endRow; r++) {
-              for (let c = 0; c < COLS; c++) {
-                if (!board[r][c]) possible.push({ r, c });
-              }
-            }
-            if (possible.length > 0) {
-              let spot = possible[Math.floor(Math.random() * possible.length)];
-              ai.mana -= cost;
-              board[spot.r][spot.c] = { type: cardType, owner: "ai", hasMoved: false, hasAttacked: false };
-              // Remove card from AI hand
+          let cardKey = ai.hand[i];
+          let cardTemplate = cardTemplates[cardKey];
+          if (ai.currentMana >= cardTemplate.cost && cardTemplate.type === "minion") {
+            ai.currentMana -= cardTemplate.cost;
+            ai.hand.splice(i, 1);
+            let minion = Object.assign({}, cardTemplate);
+            minion.currentHP = cardTemplate.hp;
+            minion.attacked = false;
+            ai.battlefield.push(minion);
+            logMessage("AI summoned a " + minion.name + ".");
+            break;
+          } else if (ai.currentMana >= cardTemplate.cost && cardTemplate.type === "spell") {
+            // For the Reinforcement spell, simply draw 2 cards.
+            if (cardTemplate.effect === "draw2") {
+              ai.currentMana -= cardTemplate.cost;
               ai.hand.splice(i, 1);
+              drawCard("ai");
+              drawCard("ai");
+              logMessage("AI cast Reinforcement.");
               break;
             }
           }
         }
-        // AI moves: for each AI minion on board (except those that already moved) try to move closer to player's Villager.
-        for (let r = 0; r < ROWS; r++) {
-          for (let c = 0; c < COLS; c++) {
-            let cell = board[r][c];
-            if (cell && cell.owner === "ai" && !cell.hasMoved) {
-              // Determine adjacent cells (in any direction)
-              let moves = [];
-              for (let dr = -1; dr <= 1; dr++) {
-                for (let dc = -1; dc <= 1; dc++) {
-                  if (dr === 0 && dc === 0) continue;
-                  let nr = r + dr, nc = c + dc;
-                  if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
-                    // Allow move if empty or if occupied by a player's minion
-                    if (!board[nr][nc] || board[nr][nc].owner === "player") {
-                      moves.push({ r: nr, c: nc });
-                    }
-                  }
-                }
+        // AI combat: each AI minion attacks if able.
+        ai.battlefield.forEach(minion => {
+          if (!minion.attacked) {
+            // If opponent has minions, attack the first one; otherwise, attack the hero.
+            if (player.battlefield.length > 0) {
+              let defender = player.battlefield[0];
+              defender.currentHP -= minion.attack;
+              minion.currentHP -= defender.attack;
+              logMessage("AI's " + minion.name + " attacked your " + defender.name + ".");
+              if (defender.currentHP <= 0) {
+                logMessage("Your " + defender.name + " was destroyed.");
+                player.battlefield.shift();
               }
-              if (moves.length > 0) {
-                // Choose the move that minimizes Manhattan distance to player's Villager
-                moves.sort((a, b) => {
-                  let da = Math.abs(a.r - player.villagerPos.row) + Math.abs(a.c - player.villagerPos.col);
-                  let db = Math.abs(b.r - player.villagerPos.row) + Math.abs(b.c - player.villagerPos.col);
-                  return da - db;
-                });
-                let move = moves[0];
-                // If the destination has a player's unit, attack it
-                if (board[move.r][move.c] && board[move.r][move.c].owner === "player") {
-                  let target = board[move.r][move.c];
-                  // If target is the Villager, AI wins.
-                  if (target.type === "Villager") {
-                    board[move.r][move.c] = cell;
-                    board[r][c] = null;
-                    renderBoard();
-                    setMessage("AI captured your Villager. You lose.");
-                    currentTurn = "gameover";
-                    return;
-                  } else {
-                    // Remove the enemy unit
-                    board[move.r][move.c] = cell;
-                    board[r][c] = null;
-                  }
-                } else if (!board[move.r][move.c]) {
-                  // Move to empty cell
-                  board[move.r][move.c] = cell;
-                  board[r][c] = null;
-                }
-                cell.hasMoved = true;
+              if (minion.currentHP <= 0) {
+                logMessage("AI's " + minion.name + " was destroyed in combat.");
               }
+            } else {
+              player.hero.hp -= minion.attack;
+              logMessage("AI's " + minion.name + " attacked your Villager for " + minion.attack + " damage.");
             }
+            minion.attacked = true;
           }
-        }
-        renderBoard();
-        // Reset moved flags for next turn for both sides
-        resetMoveFlags("player");
-        resetMoveFlags("ai");
-        // Increase player's mana for next turn
-        player.mana = Math.min(player.mana + 1, MAX_MANA);
-        updateManaDisplay();
-        // Draw a card for the player
-        drawCard("player");
-        renderHand();
+        });
+        checkVictory();
+        // End of AI turn: reset minion attack flags for both sides.
+        player.battlefield.forEach(m => m.attacked = false);
+        ai.battlefield.forEach(m => m.attacked = false);
         currentTurn = "player";
-        setMessage("Your turn.");
+        // Increase player's mana for next turn if applicable.
+        player.maxMana = Math.min(player.maxMana + 1, MAX_MANA);
+        player.currentMana = player.maxMana;
+        drawCard("player");
+        logMessage("Your turn begins.");
+        updateUI();
       }
       
-      // Reset moved/attacked flags for all minions of given owner
-      function resetMoveFlags(owner) {
-        for (let r = 0; r < ROWS; r++) {
-          for (let c = 0; c < COLS; c++) {
-            let cell = board[r][c];
-            if (cell && cell.owner === owner) {
-              cell.hasMoved = false;
-              cell.hasAttacked = false;
-            }
+      /***** VICTORY CHECK *****/
+      function checkVictory() {
+        if (player.hero.hp <= 0) {
+          logMessage("Your Villager has been defeated. You lose!");
+          currentTurn = "gameover";
+        }
+        if (ai.hero.hp <= 0) {
+          logMessage("Opponent's Villager has been defeated. You win!");
+          currentTurn = "gameover";
+        }
+      }
+      
+      /***** UI UPDATES *****/
+      function updateUI() {
+        // Update hero health and mana
+        document.getElementById("playerHeroHP").innerText = player.hero.hp;
+        document.getElementById("opponentHeroHP").innerText = ai.hero.hp;
+        document.getElementById("playerMana").innerText = player.currentMana + " / " + player.maxMana;
+        document.getElementById("opponentMana").innerText = ai.currentMana + " / " + ai.maxMana;
+        
+        // Update battlefield display
+        let playerBF = document.getElementById("playerBattlefield");
+        playerBF.innerHTML = "";
+        player.battlefield.forEach((minion, index) => {
+          let div = document.createElement("div");
+          div.className = "minion" + (selectedAttacker && selectedAttacker.index === index ? " selected" : "");
+          div.innerText = minion.name + "\n" + minion.attack + "/" + minion.currentHP;
+          // Clicking on a minion selects it for attack
+          div.onclick = () => selectAttacker(index);
+          playerBF.appendChild(div);
+        });
+        let opponentBF = document.getElementById("opponentBattlefield");
+        opponentBF.innerHTML = "";
+        ai.battlefield.forEach((minion, index) => {
+          let div = document.createElement("div");
+          div.className = "minion";
+          div.innerText = minion.name + "\n" + minion.attack + "/" + minion.currentHP;
+          // Clicking on an opponent minion attacks it (if an attacker is selected)
+          div.onclick = () => {
+            if (selectedAttacker) attackMinion(index);
+          };
+          opponentBF.appendChild(div);
+        });
+        
+        // Update hand display (player only)
+        let handContainer = document.getElementById("handContainer");
+        handContainer.innerHTML = "";
+        player.hand.forEach((cardKey, index) => {
+          let card = cardTemplates[cardKey];
+          let div = document.createElement("div");
+          div.className = "card";
+          div.innerText = card.name + "\nCost: " + card.cost;
+          // Clicking on a card plays it
+          div.onclick = () => playCard(index);
+          handContainer.appendChild(div);
+        });
+        
+        // For opponent's hand we do not show cards.
+      }
+      
+      function logMessage(msg) {
+        let messageDiv = document.getElementById("message");
+        messageDiv.innerText = msg;
+      }
+      
+      // Allow clicking on opponent hero to attack directly
+      document.getElementById("opponentArea").onclick = function(e) {
+        // Only if click is on the hero section (not on battlefield)
+        if (e.target.id === "opponentHeroHP" || e.target.parentNode.id === "opponentArea") {
+          if (selectedAttacker) {
+            attackHero();
           }
         }
       }
       
-      // When the page loads, initialize the game.
+      // Start the game when the page loads.
       window.onload = initGame;
     </script>
   </body>
