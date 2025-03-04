@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="UTF-8">
-    <title>CHEGG Card Game Variant – Expanded</title>
+    <title>CHEGG Card Game Variant – Revised AI & Hero Defense</title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -80,7 +80,7 @@
   </head>
   <body>
     <div id="gameContainer">
-      <h1>CHEGG Card Game Variant – Expanded</h1>
+      <h1>CHEGG Card Game Variant – Revised</h1>
       <!-- Opponent Info -->
       <div id="opponentArea" class="section">
         <div>
@@ -135,7 +135,7 @@
       const MAX_MANA = 6;
       const STARTING_HP = 20;
       
-      // Define card templates. For each minion, if it has a special ability, we add an "ability" field.
+      // Card templates. Each minion with an ability has an "ability" field.
       const cardTemplates = {
         "Villager": { type: "hero", name: "Villager", cost: 0, attack: 0, hp: STARTING_HP },
         "Zombie":   { type: "minion", name: "Zombie", cost: 1, attack: 1, hp: 1 },
@@ -180,7 +180,7 @@
         maxMana: 0
       };
       
-      // For selecting a minion to attack or activate ability.
+      // For selecting a minion for attack/ability activation.
       let selectedAttacker = null;
       
       /***** INITIALIZATION *****/
@@ -189,31 +189,31 @@
         currentTurn = "player";
         selectedAttacker = null;
         
-        // Create heroes
+        // Create heroes.
         player.hero = Object.assign({}, cardTemplates["Villager"]);
         ai.hero = Object.assign({}, cardTemplates["Villager"]);
         
-        // Build decks – for simplicity each deck contains a mix of many units
+        // Build decks – each deck gets a variety of units.
         player.deck = buildDeck();
         ai.deck = buildDeck();
         
-        // Shuffle decks
+        // Shuffle decks.
         player.deck.sort(() => Math.random() - 0.5);
         ai.deck.sort(() => Math.random() - 0.5);
         
-        // Clear hands and battlefields
+        // Clear hands and battlefields.
         player.hand = [];
         ai.hand = [];
         player.battlefield = [];
         ai.battlefield = [];
         
-        // Draw initial hand (5 cards)
+        // Draw initial hand (5 cards).
         for (let i = 0; i < 5; i++) {
           drawCard("player");
           drawCard("ai");
         }
         
-        // Initialize mana
+        // Initialize mana.
         player.maxMana = 0;
         player.currentMana = 0;
         ai.maxMana = 0;
@@ -226,7 +226,6 @@
       
       function buildDeck() {
         let deck = [];
-        // Adjust counts as desired – here we add a variety of units
         let counts = {
           "Zombie": 6, "Creeper": 3, "Pig": 3, "Rabbit": 2, "PufferFish": 2,
           "IronGolem": 2, "Frog": 2, "Skeleton": 3, "Blaze": 2, "Phantom": 2,
@@ -256,7 +255,7 @@
         currentTurn = side;
         if (side === "player") {
           turnNumber++;
-          // Increase mana up to MAX_MANA. Also, if a Cat is in play, add extra mana.
+          // Increase mana (and check for Cat bonus).
           player.maxMana = Math.min(player.maxMana + 1, MAX_MANA);
           if (player.battlefield.some(m => m.name === "Cat"))
             player.maxMana = Math.min(player.maxMana + 1, MAX_MANA);
@@ -277,7 +276,7 @@
       function endTurn() {
         if (currentTurn !== "player") return;
         logMessage("Ending your turn.");
-        // Reset attack and ability usage flags
+        // Reset minion attack and ability flags.
         player.battlefield.forEach(m => { m.attacked = false; m.abilityUsed = false; });
         currentTurn = "ai";
         updateUI();
@@ -285,7 +284,7 @@
       }
       
       /***** PLAYER ACTIONS *****/
-      // Clicking on a card in hand to play it
+      // Clicking on a card in hand to play it.
       function playCard(index) {
         if (currentTurn !== "player") return;
         let cardKey = player.hand[index];
@@ -302,7 +301,7 @@
           minion.attacked = false;
           minion.abilityUsed = false;
           player.battlefield.push(minion);
-          // For cards with an on-play ability (like Pig support), trigger immediately.
+          // For on-play ability (e.g., Pig's support).
           if (minion.ability === "support") {
             drawCard("player");
             logMessage("Pig's support activated: you draw 1 card.");
@@ -318,7 +317,7 @@
         updateUI();
       }
       
-      // Clicking on a minion to select it for attack/ability activation.
+      // Selecting a minion for attack/ability.
       function selectAttacker(index) {
         if (currentTurn !== "player") return;
         let attacker = player.battlefield[index];
@@ -327,34 +326,40 @@
           return;
         }
         selectedAttacker = { minion: attacker, index: index };
-        logMessage("Selected " + attacker.name + ". Click on opponent's hero or minion to attack, or use its ability if available.");
+        logMessage("Selected " + attacker.name + ". Click an enemy minion to attack or click the opponent's hero area if no enemy units remain.");
         updateUI();
       }
       
-      // When player clicks on opponent hero to attack
+      // When player clicks on opponent hero to attack.
       function attackHero() {
         if (!selectedAttacker) return;
+        // Check: hero can only be attacked if no enemy minions are present.
+        if (ai.battlefield.length > 0) {
+          logMessage("You must attack enemy minions before targeting the hero.");
+          return;
+        }
         let attacker = selectedAttacker.minion;
-        // Check if this minion has an ability that modifies direct attacks (e.g., Phantom's "shadow")
-        let extra = 0;
-        if (attacker.ability === "shadow" && attacker.abilityUsed === false) {
-          extra = attacker.attack; // double damage
+        // For abilities like Phantom's "shadow", apply bonus damage.
+        let bonus = 0;
+        if (attacker.ability === "shadow" && !attacker.abilityUsed) {
+          bonus = attacker.attack;
           attacker.abilityUsed = true;
           logMessage("Phantom's Shadow activated: damage doubled.");
         }
-        ai.hero.hp -= (attacker.attack + extra);
+        ai.hero.hp -= (attacker.attack + bonus);
         attacker.attacked = true;
-        logMessage("Your " + attacker.name + " attacked the opponent's Villager for " + (attacker.attack + extra) + " damage.");
+        logMessage("Your " + attacker.name + " attacked the opponent's Villager for " + (attacker.attack + bonus) + " damage.");
         selectedAttacker = null;
         checkVictory();
         updateUI();
       }
       
-      // When player clicks on an opponent minion to attack
+      // When player clicks on an enemy minion to attack.
       function attackMinion(aiIndex) {
         if (!selectedAttacker) return;
         let attacker = selectedAttacker.minion;
         let defender = ai.battlefield[aiIndex];
+        // Attack only if a defender exists.
         defender.currentHP -= attacker.attack;
         attacker.currentHP -= defender.attack;
         logMessage("Your " + attacker.name + " attacked opponent's " + defender.name + ".");
@@ -372,7 +377,7 @@
         updateUI();
       }
       
-      // Activate ability for the selected minion (if available)
+      // Activate ability for the selected minion.
       function activateSelectedAbility() {
         if (!selectedAttacker) {
           logMessage("No minion selected for ability activation.");
@@ -383,14 +388,13 @@
           logMessage("This minion has no available ability.");
           return;
         }
-        // Call the ability function based on attacker.ability
         activateAbility("player", selectedAttacker.index);
         selectedAttacker = null;
         updateUI();
       }
       
       /***** ABILITY FUNCTIONS *****/
-      // side: "player" or "ai"; index: index of minion in that side's battlefield
+      // side: "player" or "ai"; index: minion index on that battlefield.
       function activateAbility(side, index) {
         let p = (side === "player") ? player : ai;
         let opponent = (side === "player") ? ai : player;
@@ -398,54 +402,47 @@
         if (minion.abilityUsed) return;
         switch(minion.ability) {
           case "explode":
-            // Deal 1 damage to all enemy minions and hero, then remove self.
             opponent.battlefield.forEach(m => m.currentHP -= 1);
             opponent.hero.hp -= 1;
             logMessage(minion.name + " explodes, dealing 1 damage to all enemy units and hero!");
             p.battlefield.splice(index, 1);
             break;
           case "hop":
-            // Draw 1 card.
             drawCard(side);
             logMessage(minion.name + " hops and draws 1 card!");
             minion.abilityUsed = true;
             break;
           case "splash":
-            // Deal 1 damage to all enemy minions.
             opponent.battlefield.forEach(m => m.currentHP -= 1);
             logMessage(minion.name + " splashes, dealing 1 damage to all enemy minions!");
             minion.abilityUsed = true;
             break;
           case "sweep":
-            // Deal 1 damage to all enemy minions.
             opponent.battlefield.forEach(m => m.currentHP -= 1);
             logMessage(minion.name + " sweeps, damaging all enemy minions!");
             minion.abilityUsed = true;
             break;
           case "pull":
-            // Choose an enemy minion to reduce its attack by 1 for this turn.
             if(opponent.battlefield.length > 0) {
-              let target = opponent.battlefield[0]; // For simplicity, choose the first.
+              let target = opponent.battlefield[0];
               target.attack = Math.max(0, target.attack - 1);
               logMessage(minion.name + " pulls, reducing " + target.name + "'s attack by 1 for this turn.");
               minion.abilityUsed = true;
             }
             break;
           case "ranged":
-            // Choose an enemy minion and deal 2 damage with no retaliation.
             if(opponent.battlefield.length > 0) {
               let target = opponent.battlefield[0];
               target.currentHP -= 2;
               logMessage(minion.name + " uses Ranged attack on " + target.name + " for 2 damage!");
               minion.abilityUsed = true;
-              if(target.currentHP <= 0){
+              if(target.currentHP <= 0) {
                 logMessage(target.name + " was destroyed.");
                 opponent.battlefield.shift();
               }
             }
             break;
           case "teleport":
-            // Swap this minion with another friendly minion.
             if(p.battlefield.length > 1) {
               let target = p.battlefield.find((m, i) => i !== index);
               if(target) {
@@ -456,14 +453,12 @@
             }
             break;
           case "jump":
-            // Deal 1 damage to enemy hero and all enemy minions.
             opponent.hero.hp -= 1;
             opponent.battlefield.forEach(m => m.currentHP -= 1);
             logMessage(minion.name + " jumps, dealing 1 damage to enemy hero and all enemy minions!");
             minion.abilityUsed = true;
             break;
           case "longshot":
-            // Choose an enemy minion and deal 2 damage.
             if(opponent.battlefield.length > 0) {
               let target = opponent.battlefield[0];
               target.currentHP -= 2;
@@ -476,28 +471,23 @@
             }
             break;
           case "copy":
-            // Copy the ability of the last friendly minion that has an ability.
             let friendly = p.battlefield.slice().reverse().find(m => m.ability && m !== minion);
             if(friendly) {
               logMessage(minion.name + " copies " + friendly.name + "'s ability (no additional effect).");
-              // For simplicity, we simply log the copy.
               minion.abilityUsed = true;
             }
             break;
           case "manaBoost":
-            // This is passive – already handled on turn start.
             logMessage(minion.name + " passively boosts your mana each turn.");
             break;
           case "disrupt":
-            // Force opponent to discard a random card.
             if(opponent.hand.length > 0) {
-              let discard = opponent.hand.splice(Math.floor(Math.random()*opponent.hand.length), 1);
+              opponent.hand.splice(Math.floor(Math.random() * opponent.hand.length), 1);
               logMessage(minion.name + " disrupts and forces opponent to discard a card!");
               minion.abilityUsed = true;
             }
             break;
           case "explosiveWither":
-            // Deal 2 damage to all enemy minions and enemy hero.
             opponent.battlefield.forEach(m => m.currentHP -= 2);
             opponent.hero.hp -= 2;
             logMessage(minion.name + " unleashes Explosive Wither, dealing 2 damage to all enemies!");
@@ -506,21 +496,21 @@
           default:
             logMessage("No ability to activate.");
         }
-        // Clean up any minions that have died from abilities
+        // Clean up enemy minions that died from abilities.
         opponent.battlefield = opponent.battlefield.filter(m => m.currentHP > 0);
       }
       
       /***** AI TURN LOGIC *****/
       function aiTurn() {
-        // AI plays cards as long as it can afford one
-        let played = true;
-        while(played) {
-          played = false;
+        // AI Card Play Phase: Play as many affordable cards as possible.
+        let playedCard = true;
+        while(playedCard) {
+          playedCard = false;
           for (let i = 0; i < ai.hand.length; i++) {
             let cardKey = ai.hand[i];
             let cardTemplate = cardTemplates[cardKey];
             if (ai.currentMana >= cardTemplate.cost) {
-              // AI prefers to play minions over spells if possible.
+              // AI prioritizes minions over spells.
               if(cardTemplate.type === "minion") {
                 ai.currentMana -= cardTemplate.cost;
                 ai.hand.splice(i, 1);
@@ -530,7 +520,7 @@
                 minion.abilityUsed = false;
                 ai.battlefield.push(minion);
                 logMessage("AI summoned a " + minion.name + ".");
-                played = true;
+                playedCard = true;
                 break;
               } else if(cardTemplate.type === "spell") {
                 if(cardTemplate.effect === "draw2") {
@@ -539,23 +529,25 @@
                   drawCard("ai");
                   drawCard("ai");
                   logMessage("AI cast Reinforcement.");
-                  played = true;
+                  playedCard = true;
                   break;
                 }
               }
             }
           }
         }
-        // AI combat phase: for each minion, decide whether to attack or activate ability.
+        
+        // AI Combat Phase:
+        // For each AI minion, attack enemy minions first. Only if the player's battlefield is empty is the hero attack allowed.
         ai.battlefield.forEach((minion, index) => {
           if(!minion.attacked) {
-            // Randomly decide to activate ability if available (30% chance)
+            // With a chance, AI activates ability if available.
             if(minion.ability && !minion.abilityUsed && Math.random() < 0.3) {
               activateAbility("ai", index);
             }
-            // Then, if enemy minions exist, attack the first one; otherwise attack player's hero.
             if(!minion.attacked) {
               if (player.battlefield.length > 0) {
+                // Attack the first player minion.
                 let defender = player.battlefield[0];
                 defender.currentHP -= minion.attack;
                 minion.currentHP -= defender.attack;
@@ -565,6 +557,7 @@
                   player.battlefield.shift();
                 }
               } else {
+                // Only attack the hero if no defending units exist.
                 player.hero.hp -= minion.attack;
                 logMessage("AI's " + minion.name + " attacked your Villager for " + minion.attack + " damage.");
               }
@@ -577,7 +570,7 @@
         ai.battlefield.forEach(m => { m.attacked = false; m.abilityUsed = false; });
         player.battlefield.forEach(m => { m.attacked = false; m.abilityUsed = false; });
         currentTurn = "player";
-        // Increase player's mana (and apply Cat bonus)
+        // Increase player's mana (plus Cat bonus) and draw a card.
         player.maxMana = Math.min(player.maxMana + 1, MAX_MANA);
         if (player.battlefield.some(m => m.name === "Cat"))
           player.maxMana = Math.min(player.maxMana + 1, MAX_MANA);
@@ -636,7 +629,7 @@
           handContainer.appendChild(div);
         });
         
-        // Show the Activate Ability button if a player's minion is selected and has an ability available.
+        // Show the Activate Ability button if a player's minion is selected and its ability is available.
         if(selectedAttacker && selectedAttacker.minion.ability && !selectedAttacker.minion.abilityUsed) {
           document.getElementById("activateAbilityButton").style.display = "inline-block";
         } else {
@@ -648,7 +641,7 @@
         document.getElementById("message").innerText = msg;
       }
       
-      // Allow clicking on opponent hero area to attack directly.
+      // Allow clicking on opponent hero area to attack directly if no enemy minions exist.
       document.getElementById("opponentArea").onclick = function(e) {
         if(e.target.id === "opponentHeroHP" || e.target.parentNode.id === "opponentArea") {
           if(selectedAttacker) {
