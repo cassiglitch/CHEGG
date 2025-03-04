@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="UTF-8">
-    <title>CHEGG Card Game Variant – AI Ramp & Single Action</title>
+    <title>CHEGG Card Game Variant – Mana Refresh & Hero Attack</title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -75,7 +75,8 @@
   </head>
   <body>
     <div id="gameContainer">
-      <h1>CHEGG Card Game Variant – AI Ramp & Single Action</h1>
+      <h1>CHEGG Card Game Variant – Mana Refresh & Hero Attack</h1>
+      
       <!-- Opponent Info -->
       <div class="section">
         <div class="area">
@@ -91,6 +92,7 @@
         <div class="area">
           <div style="width:48%;">
             <strong>Opponent Battlefield</strong>
+            <!-- Clicking here when there are no minions will attack the hero -->
             <div id="opponentBattlefield" class="battlefield"></div>
           </div>
           <div style="width:48%;">
@@ -140,7 +142,7 @@
       const MAX_MANA = 6;
       const STARTING_HP = 20;
       
-      // Card templates. Each minion with an ability has an "ability" field.
+      // Card templates. Each minion with an ability includes an "ability" field.
       const cardTemplates = {
         "Villager": { type: "hero", name: "Villager", cost: 0, attack: 0, hp: STARTING_HP },
         "Zombie":   { type: "minion", name: "Zombie", cost: 1, attack: 1, hp: 1 },
@@ -218,7 +220,7 @@
           drawCard("ai");
         }
         
-        // Initialize mana (starting at 1).
+        // Initialize mana starting at 1.
         player.maxMana = 1;
         player.currentMana = 1;
         ai.maxMana = 1;
@@ -260,11 +262,13 @@
         currentTurn = side;
         if (side === "player") {
           turnNumber++;
-          // Increase player's mana ramping (up to MAX_MANA); apply Cat bonus if applicable.
+          // Ramp player's mana.
           player.maxMana = Math.min(player.maxMana + 1, MAX_MANA);
+          // Cat bonus: if a Cat is in play, add one extra (but still capped).
           if (player.battlefield.some(m => m.name === "Cat")) {
             player.maxMana = Math.min(player.maxMana + 1, MAX_MANA);
           }
+          // Refresh mana.
           player.currentMana = player.maxMana;
           drawCard("player");
           logMessage("Your turn. You have " + player.currentMana + " mana.");
@@ -288,7 +292,6 @@
         player.battlefield.forEach(m => { m.attacked = false; m.abilityUsed = false; });
         currentTurn = "ai";
         updateUI();
-        // Start AI turn after a short delay.
         setTimeout(aiTurn, 1000);
       }
       
@@ -332,7 +335,7 @@
           return;
         }
         selectedAttacker = { minion: attacker, index: index };
-        logMessage("Selected " + attacker.name + ". Click an enemy minion to attack or the opponent's hero (if no enemy units remain).");
+        logMessage("Selected " + attacker.name + ". Click an enemy minion to attack or click the opponent's battlefield to attack the hero if no enemy units remain.");
         updateUI();
       }
       
@@ -495,12 +498,13 @@
           default:
             logMessage("No ability to activate.");
         }
+        // Remove any enemy minions that have died.
         opponent.battlefield = opponent.battlefield.filter(m => m.currentHP > 0);
       }
       
       /***** AI TURN – SINGLE ACTION *****/
       function aiTurn() {
-        // AI will take one action per turn:
+        // AI will take one action per turn.
         let actionTaken = false;
         
         // 1. Try to play a card from hand.
@@ -529,12 +533,11 @@
           }
         }
         
-        // 2. If no card is played, try to attack with a minion.
+        // 2. If no card was played, try to attack with a minion.
         if (!actionTaken) {
           for (let i = 0; i < ai.battlefield.length; i++) {
             let minion = ai.battlefield[i];
             if (!minion.attacked) {
-              // Attack enemy minions first; if none, attack hero.
               if (player.battlefield.length > 0) {
                 let defender = player.battlefield[0];
                 defender.currentHP -= minion.attack;
@@ -569,6 +572,7 @@
         
         // End AI turn after one action.
         checkVictory();
+        // Reset flags.
         ai.battlefield.forEach(m => { m.attacked = false; m.abilityUsed = false; });
         player.battlefield.forEach(m => { m.attacked = false; m.abilityUsed = false; });
         currentTurn = "player";
@@ -618,6 +622,7 @@
           let div = document.createElement("div");
           div.className = "minion";
           div.innerText = minion.name + "\n" + minion.attack + "/" + minion.currentHP;
+          // When clicking on an enemy minion, if a player minion is selected, attack it.
           div.onclick = () => { if(selectedAttacker) attackMinion(index); };
           opponentBF.appendChild(div);
         });
@@ -654,13 +659,20 @@
         document.getElementById("message").innerText = msg;
       }
       
-      document.getElementById("opponentArea").onclick = function(e) {
-        if (e.target.id === "opponentHeroHP" || e.target.parentNode.id === "opponentArea") {
-          if (selectedAttacker) {
-            attackHero();
-          }
+      // Clicking on the opponentBattlefield container (outside of any minion) will attack the hero if there are no minions.
+      document.getElementById("opponentBattlefield").addEventListener("click", function(e) {
+        // Only trigger if the container itself was clicked (i.e. not a child element)
+        if (e.target === this && selectedAttacker) {
+          attackHero();
         }
-      }
+      });
+      
+      // Also allow clicking on the opponent's area header to attack hero.
+      document.getElementById("opponentArea").addEventListener("click", function(e) {
+        if ((e.target.id === "opponentHeroHP" || e.target.parentNode.id === "opponentArea") && selectedAttacker) {
+          attackHero();
+        }
+      });
       
       window.onload = initGame;
     </script>
