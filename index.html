@@ -2,7 +2,8 @@
 <html>
   <head>
     <meta charset="UTF-8">
-    <title>CHEGG Card Game Variant – Custom Deck, Mana, AI, & Recycle Discards</title>
+    <title>
+      Custom Card Game – Hero, Deck, Mana, AI, Recycling & Upgrade</title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -20,9 +21,7 @@
         padding: 10px;
         box-shadow: 0 0 10px rgba(0,0,0,0.2);
       }
-      .section {
-        margin-bottom: 15px;
-      }
+      .section { margin-bottom: 15px; }
       .area {
         display: flex;
         justify-content: space-between;
@@ -49,53 +48,48 @@
         cursor: pointer;
         white-space: pre-line;
       }
-      .selected {
-        border: 2px solid #f80;
-        background: #fffae6;
-      }
+      .selected { border: 2px solid #f80; background: #fffae6; }
       #message {
         margin-top: 10px;
         padding: 5px;
         background: #eef;
         border: 1px solid #99f;
       }
-      #controls {
-        text-align: center;
-        margin-top: 10px;
-      }
-      button {
-        margin: 5px;
-        padding: 8px 16px;
-        font-size: 16px;
-      }
-      .info {
-        font-size: 18px;
-      }
-      .biomeZone {
-        font-style: italic;
-        text-align: center;
-      }
+      #controls { text-align: center; margin-top: 10px; }
+      button { margin: 5px; padding: 8px 16px; font-size: 16px; }
+      .info { font-size: 18px; }
+      .biomeZone { font-style: italic; text-align: center; }
       /* Deck builder styles */
-      #deckBuilderContainer {
-        margin-bottom: 20px;
-      }
-      #availableCards, #selectedDeck {
-        border: 1px solid #888;
-        padding: 5px;
-        min-height: 120px;
-        background: #fff;
-        margin: 5px 0;
-      }
-      .deckCard {
-        cursor: pointer;
-      }
+      #deckBuilderContainer { margin-bottom: 20px; }
+      #availableCards, #selectedDeck { border: 1px solid #888; padding: 5px; min-height: 120px; background: #fff; margin: 5px 0; }
+      .deckCard { cursor: pointer; }
+      /* Hero selection styles */
+      #heroSelection { text-align: center; margin-bottom: 15px; }
+      .heroOption { display: inline-block; border: 1px solid #333; border-radius: 4px; padding: 8px 12px; margin: 5px; cursor: pointer; background: #fafafa; }
     </style>
   </head>
   <body>
-    <!-- DECK BUILDER VIEW -->
+    <!-- DECK BUILDER & HERO SELECTION VIEW -->
     <div id="deckBuilderContainer">
-      <h1>Deck Builder</h1>
-      <p>Select up to 15 cards for your deck. You may add minions, spells, or biome cards.</p>
+      <h1>Deck Builder & Hero Selection</h1>
+      <div id="heroSelection">
+        <h2>Select Your Hero</h2>
+        <!-- Four hero options -->
+        <div class="heroOption" onclick="selectHero('Villager')">
+          <strong>Guardian</strong><br>30 HP, No Passive
+        </div>
+        <div class="heroOption" onclick="selectHero('Druid')">
+          <strong>Druid</strong><br>20 HP, Starts with Forest
+        </div>
+        <div class="heroOption" onclick="selectHero('GuardianPassive')">
+          <strong>Guardian</strong><br>20 HP, Units take 1 less targeted damage, but Hero takes 1 more
+        </div>
+        <div class="heroOption" onclick="selectHero('Sandcrawler')">
+          <strong>Sandcrawler</strong><br>20 HP, Starts with Desert
+        </div>
+      </div>
+      <p id="selectedHeroDisplay" style="text-align:center;">Selected Hero: None</p>
+      <p>Select up to 15 cards for your deck. (Biome cards do not count toward your 5‑card hand minimum.)</p>
       <div class="section">
         <h2>Available Cards</h2>
         <div id="availableCards" class="deckArea"></div>
@@ -113,12 +107,12 @@
 
     <!-- GAME VIEW -->
     <div id="gameContainer" style="display:none;">
-      <h1>CHEGG Card Game Variant – Custom Deck, Mana, AI, & Recycling</h1>
+      <h1>Custom Card Game – Deck, Mana, AI, Recycling & Upgrade</h1>
       <!-- Opponent Info -->
       <div class="section">
         <div class="area">
           <div>
-            <strong>Opponent Villager</strong><br>
+            <strong>Opponent Hero</strong><br>
             <span id="opponentHeroHP" class="info"></span>
           </div>
           <div>
@@ -146,7 +140,7 @@
       <div class="section">
         <div class="area">
           <div>
-            <strong>Your Villager</strong><br>
+            <strong>Your Hero</strong><br>
             <span id="playerHeroHP" class="info"></span>
           </div>
           <div>
@@ -174,11 +168,12 @@
       <div id="controls" class="section">
         <button onclick="endTurn()" id="endTurnButton">End Turn</button>
         <button onclick="activateSelectedAbility()" id="activateAbilityButton" style="display:none;">Activate Ability</button>
+        <button onclick="upgradeUnits()" id="upgradeButton" style="display:none;">Upgrade Units</button>
         <button onclick="resetGame()">Reset Game</button>
       </div>
       
       <!-- Message Log -->
-      <div id="message" class="section">Welcome to CHEGG Card Game!</div>
+      <div id="message" class="section">Welcome to the game!</div>
     </div>
     
     <script>
@@ -186,254 +181,61 @@
       const MAX_MANA = 6;
       const STARTING_HP = 20;
       const ATTACK_COST = 1; // Each attack costs 1 mana
+      const MAX_MINIONS = 3; // Max minions on battlefield per side
+      const MIN_HAND_SIZE = 5; // Minimum non-biome cards in hand
 
-      // Card templates with elemental properties.
-      const cardTemplates = {
-        "Villager": { 
-          type: "hero", 
-          name: "Villager", 
-          cost: 0, 
-          attack: 0, 
-          hp: STARTING_HP 
-        },
-        "Zombie": { 
-          type: "minion", 
-          name: "Zombie", 
-          cost: 1, 
-          attack: 1, 
-          hp: 1, 
-          element: "undead", 
-          strengths: [], 
-          weaknesses: ["fire"] 
-        },
-        "Creeper": { 
-          type: "minion", 
-          name: "Creeper", 
-          cost: 1, 
-          attack: 1, 
-          hp: 1, 
-          element: "undead", 
-          strengths: [], 
-          weaknesses: ["water"],
-          ability: "explode" 
-        },
-        "Pig": { 
-          type: "minion", 
-          name: "Pig", 
-          cost: 1, 
-          attack: 0, 
-          hp: 1, 
-          element: "beast", 
-          strengths: [], 
-          weaknesses: [],
-          ability: "support" 
-        },
-        "Rabbit": { 
-          type: "minion", 
-          name: "Rabbit", 
-          cost: 2, 
-          attack: 1, 
-          hp: 1, 
-          element: "beast", 
-          strengths: [], 
-          weaknesses: [],
-          ability: "hop" 
-        },
-        "PufferFish": { 
-          type: "minion", 
-          name: "Puffer-Fish", 
-          cost: 2, 
-          attack: 1, 
-          hp: 1, 
-          element: "water", 
-          strengths: ["fire"], 
-          weaknesses: ["electric"],
-          ability: "splash" 
-        },
-        "IronGolem": { 
-          type: "minion", 
-          name: "Iron-Golem", 
-          cost: 2, 
-          attack: 2, 
-          hp: 3, 
-          element: "earth", 
-          strengths: ["undead"], 
-          weaknesses: ["water"],
-          ability: "sweep" 
-        },
-        "Frog": { 
-          type: "minion", 
-          name: "Frog", 
-          cost: 2, 
-          attack: 0, 
-          hp: 2, 
-          element: "water", 
-          strengths: [], 
-          weaknesses: ["fire"],
-          ability: "pull" 
-        },
-        "Skeleton": { 
-          type: "minion", 
-          name: "Skeleton", 
-          cost: 3, 
-          attack: 3, 
-          hp: 2, 
-          element: "undead", 
-          strengths: [], 
-          weaknesses: ["fire"] 
-        },
-        "Blaze": { 
-          type: "minion", 
-          name: "Blaze", 
-          cost: 3, 
-          attack: 3, 
-          hp: 2, 
-          element: "fire", 
-          strengths: ["undead"], 
-          weaknesses: ["water"],
-          ability: "ranged" 
-        },
-        "Phantom": { 
-          type: "minion", 
-          name: "Phantom", 
-          cost: 3, 
-          attack: 2, 
-          hp: 1, 
-          element: "air", 
-          strengths: [], 
-          weaknesses: ["earth"],
-          ability: "shadow" 
-        },
-        "Enderman": { 
-          type: "minion", 
-          name: "Enderman", 
-          cost: 4, 
-          attack: 3, 
-          hp: 2, 
-          element: "dark", 
-          strengths: [], 
-          weaknesses: ["light"],
-          ability: "teleport" 
-        },
-        "Slime": { 
-          type: "minion", 
-          name: "Slime", 
-          cost: 4, 
-          attack: 2, 
-          hp: 3, 
-          element: "earth", 
-          strengths: [], 
-          weaknesses: ["fire"],
-          ability: "jump" 
-        },
-        "ShulkerBox": { 
-          type: "minion", 
-          name: "Shulker-Box", 
-          cost: 4, 
-          attack: 1, 
-          hp: 4, 
-          element: "metal", 
-          strengths: [], 
-          weaknesses: ["earth"],
-          ability: "longshot" 
-        },
-        "Parrot": { 
-          type: "minion", 
-          name: "Parrot", 
-          cost: 5, 
-          attack: 3, 
-          hp: 2, 
-          element: "air", 
-          strengths: [], 
-          weaknesses: ["electric"],
-          ability: "copy" 
-        },
-        "Cat": { 
-          type: "minion", 
-          name: "Cat", 
-          cost: 5, 
-          attack: 0, 
-          hp: 2, 
-          element: "beast", 
-          strengths: [], 
-          weaknesses: [],
-          ability: "manaBoost" 
-        },
-        "Sniffer": { 
-          type: "minion", 
-          name: "Sniffer", 
-          cost: 5, 
-          attack: 2, 
-          hp: 2, 
-          element: "beast", 
-          strengths: [], 
-          weaknesses: [],
-          ability: "disrupt" 
-        },
-        "Wither": { 
-          type: "minion", 
-          name: "Wither", 
-          cost: 6, 
-          attack: 4, 
-          hp: 3, 
-          element: "undead", 
-          strengths: ["beast"], 
-          weaknesses: ["fire"],
-          ability: "explosiveWither" 
-        },
-        "Reinforcement": { 
-          type: "spell", 
-          name: "Reinforcement", 
-          cost: 2, 
-          effect: "draw2" 
-        },
-        "Lightning": { 
-          type: "spell", 
-          name: "Lightning", 
-          cost: 3, 
-          effect: "lightning", 
-          damage: 3 
-        },
-        "Heal": { 
-          type: "spell", 
-          name: "Heal", 
-          cost: 3, 
-          effect: "heal", 
-          amount: 3 
-        },
-        "Forest": { 
-          type: "biome", 
-          name: "Forest", 
-          cost: 3, 
-          effect: "boost", 
-          elementTarget: "beast", 
-          bonus: 1 
-        },
-        "Desert": { 
-          type: "biome", 
-          name: "Desert", 
-          cost: 3, 
-          effect: "weaken", 
-          elementTarget: "water", 
-          penalty: 1 
-        }
+      // Hero templates
+      const heroTemplates = {
+        "Villager": { name: "Guardian", hp: 30, passive: null },
+        "Druid": { name: "Druid", hp: 20, passive: "forest" },
+        "GuardianPassive": { name: "Guardian", hp: 20, passive: "guardian" },
+        "Sandcrawler": { name: "Sandcrawler", hp: 20, passive: "desert" }
       };
-      
+
+      // Card templates (custom names and new spells/units)
+      const cardTemplates = {
+        "Villager": { type: "hero", name: "Guardian", cost: 0, attack: 0, hp: STARTING_HP },
+        "Zombie": { type: "minion", name: "Rotter", cost: 1, attack: 1, hp: 1, element: "undead", strengths: [], weaknesses: ["fire"] },
+        "Creeper": { type: "minion", name: "Boomer", cost: 1, attack: 1, hp: 1, element: "undead", strengths: [], weaknesses: ["water"], ability: "explode" },
+        "Pig": { type: "minion", name: "Oink", cost: 1, attack: 0, hp: 1, element: "beast", strengths: [], weaknesses: [], ability: "support" },
+        "Rabbit": { type: "minion", name: "Bunny", cost: 2, attack: 1, hp: 1, element: "beast", strengths: [], weaknesses: [], ability: "hop" },
+        "PufferFish": { type: "minion", name: "Spiky", cost: 2, attack: 1, hp: 1, element: "water", strengths: ["fire"], weaknesses: ["electric"], ability: "splash" },
+        "IronGolem": { type: "minion", name: "Guardian Golem", cost: 2, attack: 2, hp: 3, element: "earth", strengths: ["undead"], weaknesses: ["water"], ability: "sweep" },
+        "Frog": { type: "minion", name: "Hopper", cost: 2, attack: 0, hp: 2, element: "water", strengths: [], weaknesses: ["fire"], ability: "pull" },
+        "Skeleton": { type: "minion", name: "Bone Knight", cost: 3, attack: 3, hp: 2, element: "undead", strengths: [], weaknesses: ["fire"] },
+        "Blaze": { type: "minion", name: "Flare", cost: 3, attack: 3, hp: 2, element: "fire", strengths: ["undead"], weaknesses: ["water"], ability: "ranged" },
+        "Phantom": { type: "minion", name: "Wraith", cost: 3, attack: 2, hp: 1, element: "air", strengths: [], weaknesses: ["earth"], ability: "shadow" },
+        "Enderman": { type: "minion", name: "Shadow", cost: 4, attack: 3, hp: 2, element: "dark", strengths: [], weaknesses: ["light"], ability: "teleport" },
+        "Slime": { type: "minion", name: "Goo", cost: 4, attack: 2, hp: 3, element: "earth", strengths: [], weaknesses: ["fire"], ability: "jump" },
+        "ShulkerBox": { type: "minion", name: "Pack", cost: 4, attack: 1, hp: 4, element: "metal", strengths: [], weaknesses: ["earth"], ability: "longshot" },
+        "Parrot": { type: "minion", name: "Chirper", cost: 5, attack: 3, hp: 2, element: "air", strengths: [], weaknesses: ["electric"], ability: "copy" },
+        "Cat": { type: "minion", name: "Feline", cost: 5, attack: 0, hp: 2, element: "beast", strengths: [], weaknesses: [], ability: "manaBoost" },
+        "Sniffer": { type: "minion", name: "Tracker", cost: 5, attack: 2, hp: 2, element: "beast", strengths: [], weaknesses: [], ability: "disrupt" },
+        "Wither": { type: "minion", name: "Decay", cost: 6, attack: 4, hp: 3, element: "undead", strengths: ["beast"], weaknesses: ["fire"], ability: "explosiveWither" },
+        "Dragon": { type: "minion", name: "Dragon", cost: 7, attack: 6, hp: 6, element: "dragon", strengths: ["air"], weaknesses: ["undead"], ability: "aoe" },
+        "Reinforcement": { type: "spell", name: "Reinforcement", cost: 2, effect: "draw2" },
+        "Lightning": { type: "spell", name: "Lightning Bolt", cost: 3, effect: "lightning", damage: 3 },
+        "Heal": { type: "spell", name: "Heal", cost: 3, effect: "heal", amount: 3 },
+        "Barrier": { type: "spell", name: "Barrier", cost: 6, effect: "barrier" },
+        "Forest": { type: "biome", name: "Enchanted Forest", cost: 3, effect: "boost", elementTarget: "beast", bonus: 1 },
+        "Desert": { type: "biome", name: "Scorched Desert", cost: 3, effect: "weaken", elementTarget: "water", penalty: 1 }
+      };
+
       /***** GAME STATE *****/
       let currentTurn = "player"; // "player" or "ai"
       let turnNumber = 1;
-      
+      let selectedHero = null; // Hero key from heroTemplates
+
       let player = {
         hero: null,
         deck: [], // Loaded via deck builder
         hand: [],
         battlefield: [],
         biome: null,
-        discard: [], // Discard pile for recycling cards
+        discard: [],
         currentMana: 0,
         maxMana: 0
       };
-      
       let ai = {
         hero: null,
         deck: [], // Default deck for AI
@@ -444,16 +246,22 @@
         currentMana: 0,
         maxMana: 0
       };
-      
-      // For selecting a minion for attack/ability activation.
+
+      // For selecting a minion for attack/ability.
       let selectedAttacker = null;
-      
+
+      /***** HERO SELECTION *****/
+      function selectHero(heroKey) {
+        selectedHero = heroKey;
+        document.getElementById("selectedHeroDisplay").innerText = "Selected Hero: " + heroTemplates[heroKey].name;
+      }
+
       /***** DECK BUILDER FUNCTIONS *****/
       const availableCardKeys = Object.keys(cardTemplates).filter(key => {
         let type = cardTemplates[key].type;
         return (type === "minion" || type === "spell" || type === "biome");
       });
-      
+
       function populateAvailableCards() {
         let container = document.getElementById("availableCards");
         container.innerHTML = "";
@@ -466,7 +274,7 @@
           container.appendChild(div);
         });
       }
-      
+
       function addCardToDeck(cardKey) {
         if (player.deck.length >= 15) {
           alert("Deck limit reached (15 cards).");
@@ -476,11 +284,11 @@
         updateDeckCount();
         populateSelectedDeck();
       }
-      
+
       function updateDeckCount() {
         document.getElementById("deckCount").innerText = player.deck.length;
       }
-      
+
       function populateSelectedDeck() {
         let container = document.getElementById("selectedDeck");
         container.innerHTML = "";
@@ -497,7 +305,7 @@
           container.appendChild(div);
         });
       }
-      
+
       function saveDeck() {
         if (player.deck.length === 0) {
           alert("Your deck is empty!");
@@ -512,7 +320,7 @@
         a.click();
         URL.revokeObjectURL(url);
       }
-      
+
       function loadDeck(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -533,17 +341,10 @@
         };
         reader.readAsText(file);
       }
-      
-      function resetDeckBuilder() {
-        player.deck = [];
-        updateDeckCount();
-        populateSelectedDeck();
-      }
-      
-      /***** DRAW CARD FUNCTION (with Recycle) *****/
+
+      /***** DRAW CARD (with Recycling & Minimum Hand) *****/
       function drawCard(side) {
         let p = (side === "player") ? player : ai;
-        // If deck is empty, recycle discard pile.
         if (p.deck.length === 0 && p.discard.length > 0) {
           logMessage(side + "'s deck is empty. Recycling discard pile.");
           p.deck = shuffleArray(p.discard);
@@ -552,17 +353,31 @@
         if (p.deck.length > 0) {
           let cardKey = p.deck.shift();
           p.hand.push(cardKey);
-          logMessage(side + " drew a card: " + cardTemplates[cardKey].name);
+          logMessage(side + " drew: " + cardTemplates[cardKey].name);
         } else {
           logMessage(side + " has no cards left to draw!");
         }
       }
-      
+
+      // Ensure hand (excluding biome cards) has at least 5 cards.
+      function ensureMinimumHand(side) {
+        let p = (side === "player") ? player : ai;
+        let nonBiomeCount = p.hand.filter(key => cardTemplates[key].type !== "biome").length;
+        while (nonBiomeCount < MIN_HAND_SIZE) {
+          drawCard(side);
+          nonBiomeCount = p.hand.filter(key => cardTemplates[key].type !== "biome").length;
+          if (p.deck.length === 0 && p.discard.length === 0) break;
+        }
+      }
+
       /***** GAME FUNCTIONS *****/
-      // When starting the game, hide the deck builder and initialize game state.
       function startGame() {
         if (player.deck.length === 0) {
           alert("Please build a deck (up to 15 cards) before starting the game.");
+          return;
+        }
+        if (!selectedHero) {
+          alert("Please select a hero before starting.");
           return;
         }
         document.getElementById("deckBuilderContainer").style.display = "none";
@@ -574,16 +389,16 @@
         ai.deck = shuffleArray(ai.deck);
         initGame();
       }
-      
+
       function shuffleArray(array) {
         return array.sort(() => Math.random() - 0.5);
       }
-      
+
       function buildDefaultAIDeck() {
         const defaultKeys = ["Zombie", "Skeleton", "Blaze", "Reinforcement", "Lightning", "Forest", "Cat", "Rabbit", "Pig", "Enderman", "Heal", "Desert", "Frog", "Creeper", "Sniffer"];
         return defaultKeys;
       }
-      
+
       /***** GAME STATE INITIALIZATION *****/
       function initGame() {
         turnNumber = 1;
@@ -593,17 +408,25 @@
         ai.biome = null;
         player.discard = [];
         ai.discard = [];
-        
-        // Create heroes.
-        player.hero = Object.assign({}, cardTemplates["Villager"]);
-        ai.hero = Object.assign({}, cardTemplates["Villager"]);
-        
+
+        // Set player's Hero based on selectedHero.
+        let heroTemplate = heroTemplates[selectedHero];
+        player.hero = { name: heroTemplate.name, hp: heroTemplate.hp, attack: 0, barrierTurns: 0, passive: heroTemplate.passive };
+        // For hero passives that set starting biome.
+        if (heroTemplate.passive === "forest") {
+          player.biome = Object.assign({}, cardTemplates["Forest"]);
+        } else if (heroTemplate.passive === "desert") {
+          player.biome = Object.assign({}, cardTemplates["Desert"]);
+        }
+        // AI always uses default hero (Villager equivalent)
+        ai.hero = { name: "Opponent Guardian", hp: STARTING_HP, attack: 0, barrierTurns: 0, passive: null };
+
         // Clear hands and battlefields.
         player.hand = [];
         ai.hand = [];
         player.battlefield = [];
         ai.battlefield = [];
-        
+
         // For starting hand, draw 5 random cards from player's deck.
         for (let i = 0; i < 5; i++) {
           if (player.deck.length > 0) {
@@ -619,24 +442,22 @@
             ai.hand.push(cardKey);
           }
         }
-        
+
         // Initialize mana (starting at 1).
         player.maxMana = 1;
         player.currentMana = 1;
         ai.maxMana = 1;
         ai.currentMana = 1;
-        
+
         updateUI();
         logMessage("Game started! Your turn begins.");
-        // For the very first turn, do not ramp player's mana.
         startTurn("player");
       }
-      
+
       /***** TURN MANAGEMENT *****/
       function startTurn(side) {
         currentTurn = side;
         if (side === "player") {
-          // For player's turn, if not turn 1 then ramp mana.
           if (turnNumber > 1) {
             player.maxMana = Math.min(player.maxMana + 1, MAX_MANA);
             if (player.battlefield.some(m => m.name === "Cat")) {
@@ -645,30 +466,31 @@
           }
           turnNumber++;
           player.currentMana = player.maxMana;
-          drawCard("player");
+          ensureMinimumHand("player");
           logMessage("Your turn. You have " + player.currentMana + " mana.");
           updateUI();
         } else {
           ai.maxMana = Math.min(ai.maxMana + 1, MAX_MANA);
           ai.currentMana = ai.maxMana;
-          drawCard("ai");
+          ensureMinimumHand("ai");
           logMessage("AI turn. AI has " + ai.currentMana + " mana.");
           updateUI();
           setTimeout(aiTurn, 1000);
         }
       }
-      
+
       function endTurn() {
         if (currentTurn !== "player") return;
         logMessage("Ending your turn.");
         player.battlefield.forEach(m => { m.attacked = false; m.abilityUsed = false; });
         currentTurn = "ai";
-    ai.maxMana = Math.min(ai.maxMana + 1, MAX_MANA);
-ai.currentMana = ai.maxMana;
+        drawCard("ai");
+           ai.maxMana = Math.min(ai.maxMana + 1, MAX_MANA);
+          ai.currentMana = ai.maxMana;
         updateUI();
         setTimeout(aiTurn, 1000);
       }
-      
+
       /***** PLAYER ACTIONS *****/
       function playCard(index) {
         if (currentTurn !== "player") return;
@@ -678,18 +500,20 @@ ai.currentMana = ai.maxMana;
           logMessage("Not enough mana to play " + cardTemplate.name + ".");
           return;
         }
+        // For minions, check battlefield limit.
+        if (cardTemplate.type === "minion" && player.battlefield.length >= MAX_MINIONS) {
+          logMessage("Maximum of 3 minions allowed on the battlefield. Cannot play " + cardTemplate.name + ".");
+          return;
+        }
         player.currentMana -= cardTemplate.cost;
         player.hand.splice(index, 1);
-        // After playing, add spell cards to discard.
         if (cardTemplate.type === "biome") {
           player.biome = Object.assign({}, cardTemplate);
           logMessage("You set your biome to " + cardTemplate.name + ".");
-          // Recycle biome card immediately.
-          player.discard.push(cardKey);
-        }
-        else if (cardTemplate.type === "minion") {
+          // Biome cards always remain in hand.
+          player.hand.push(cardKey);
+        } else if (cardTemplate.type === "minion") {
           let minion = Object.assign({}, cardTemplate);
-          // Store cardKey so that if the minion is defeated it can be recycled.
           minion.cardKey = cardKey;
           minion.currentHP = cardTemplate.hp;
           minion.attacked = false;
@@ -697,9 +521,9 @@ ai.currentMana = ai.maxMana;
           player.battlefield.push(minion);
           if (minion.ability === "support") {
             drawCard("player");
-            logMessage("Pig's support activated: you draw 1 card.");
+            logMessage("Oink's support activated: you draw 1 card.");
           }
-          logMessage("You summoned a " + minion.name + ".");
+          logMessage("You summoned " + minion.name + ".");
         } else if (cardTemplate.type === "spell") {
           if (cardTemplate.effect === "draw2") {
             drawCard("player");
@@ -708,27 +532,28 @@ ai.currentMana = ai.maxMana;
           } else if (cardTemplate.effect === "lightning") {
             if (ai.battlefield.length > 0) {
               ai.battlefield[0].currentHP -= cardTemplate.damage;
-              logMessage("You cast Lightning on " + ai.battlefield[0].name + " for " + cardTemplate.damage + " damage.");
+              logMessage("You cast Lightning Bolt on " + ai.battlefield[0].name + " for " + cardTemplate.damage + " damage.");
               if (ai.battlefield[0].currentHP <= 0) {
                 logMessage(ai.battlefield[0].name + " was destroyed.");
-                // Recycle defeated minion.
                 ai.discard.push(ai.battlefield[0].cardKey || "Lightning");
                 ai.battlefield.shift();
               }
             } else {
               ai.hero.hp -= cardTemplate.damage;
-              logMessage("You cast Lightning on the opponent's Villager for " + cardTemplate.damage + " damage.");
+              logMessage("You cast Lightning Bolt on the opponent's Hero for " + cardTemplate.damage + " damage.");
             }
           } else if (cardTemplate.effect === "heal") {
             player.hero.hp += cardTemplate.amount;
-            logMessage("You cast Heal and restored " + cardTemplate.amount + " HP to your Villager.");
+            logMessage("You cast Heal and restored " + cardTemplate.amount + " HP to your Hero.");
+          } else if (cardTemplate.effect === "barrier") {
+            player.hero.barrierTurns = 2;
+            logMessage("You cast Barrier. Your Hero is shielded for 2 turns.");
           }
-          // Recycle spell card.
           player.discard.push(cardKey);
         }
         updateUI();
       }
-      
+
       function selectAttacker(index) {
         if (currentTurn !== "player") return;
         let attacker = player.battlefield[index];
@@ -737,18 +562,27 @@ ai.currentMana = ai.maxMana;
           return;
         }
         selectedAttacker = { minion: attacker, index: index };
-        logMessage("Selected " + attacker.name + ". Each attack costs " + ATTACK_COST + " mana. Click an enemy minion to attack or the opponent's battlefield (if no enemy minions remain) to attack the hero.");
+        logMessage("Selected " + attacker.name + ". Each attack costs " + ATTACK_COST + " mana. Click an enemy minion to attack or the opponent's battlefield (if no enemy minions remain) to attack the Hero.");
         updateUI();
       }
-      
+
       function attackHero() {
         if (!selectedAttacker) return;
         if (ai.battlefield.length > 0) {
-          logMessage("You must attack enemy minions before targeting the hero.");
+          logMessage("You must attack enemy minions before targeting the Hero.");
           return;
         }
         if (player.currentMana < ATTACK_COST) {
           logMessage("Not enough mana to attack.");
+          return;
+        }
+        // If opponent Hero has Barrier active, the attack does nothing (but still costs mana).
+        if (ai.hero.barrierTurns > 0) {
+          player.currentMana -= ATTACK_COST;
+          logMessage("Opponent's Barrier prevented damage. Your attack cost " + ATTACK_COST + " mana.");
+          selectedAttacker.minion.attacked = true;
+          selectedAttacker = null;
+          updateUI();
           return;
         }
         player.currentMana -= ATTACK_COST;
@@ -757,17 +591,25 @@ ai.currentMana = ai.maxMana;
         if (attacker.ability === "shadow" && !attacker.abilityUsed) {
           bonus = attacker.attack;
           attacker.abilityUsed = true;
-          logMessage("Phantom's Shadow activated: damage doubled.");
+          logMessage("Wraith's Shadow activated: damage doubled.");
         }
-        ai.hero.hp -= (attacker.attack + bonus);
+        let totalDamage = attacker.attack + bonus;
+        // If totalDamage is 0, reduce opponent Hero's attack instead.
+        if (totalDamage === 0) {
+          ai.hero.attack = Math.max(0, ai.hero.attack - 1);
+          logMessage("Your attack did 0 damage. Opponent Hero's attack reduced by 1.");
+        } else {
+          // For Guardian passive, Hero takes 1 extra damage.
+          if (player.hero.passive === "guardian") totalDamage += 1;
+          ai.hero.hp -= totalDamage;
+          logMessage("Your " + attacker.name + " attacked the opponent's Hero for " + totalDamage + " damage.");
+        }
         attacker.attacked = true;
-        logMessage("Your " + attacker.name + " attacked the opponent's Villager for " + (attacker.attack + bonus) + " damage.");
-        // Recycle attacker if it dies later.
         selectedAttacker = null;
         checkVictory();
         updateUI();
       }
-      
+
       function attackMinion(aiIndex) {
         if (!selectedAttacker) return;
         if (player.currentMana < ATTACK_COST) {
@@ -787,14 +629,23 @@ ai.currentMana = ai.maxMana;
         }
         let damageToDefender = Math.floor(attackerDamage * multiplier);
         let damageToAttacker = defenderDamage;
-        defender.currentHP -= damageToDefender;
+        // If damage would be 0 and no Barrier, reduce defender's attack instead.
+        if (damageToDefender === 0) {
+          if (ai.hero.barrierTurns > 0) {
+            logMessage("Opponent's Barrier prevented damage.");
+          } else {
+            defender.attack = Math.max(0, defender.attack - 1);
+            logMessage("Your attack did 0 damage. " + defender.name + "'s attack reduced by 1.");
+          }
+        } else {
+          defender.currentHP -= damageToDefender;
+          logMessage("Your " + attacker.name + " attacked " + defender.name + " (Damage: " + damageToDefender + " vs " + damageToAttacker + ").");
+        }
         attacker.currentHP -= damageToAttacker;
-        logMessage("Your " + attacker.name + " attacked " + defender.name + " (Damage: " + damageToDefender + " vs " + damageToAttacker + ").");
         attacker.attacked = true;
         if (defender.currentHP <= 0) {
           logMessage("Opponent's " + defender.name + " was destroyed.");
-          // Recycle the defeated minion using its stored cardKey.
-          ai.discard.push(defender.cardKey || ai.battlefield[aiIndex]);
+          ai.discard.push(defender.cardKey);
           ai.battlefield.splice(aiIndex, 1);
         }
         if (attacker.currentHP <= 0) {
@@ -806,7 +657,7 @@ ai.currentMana = ai.maxMana;
         checkVictory();
         updateUI();
       }
-      
+
       function activateSelectedAbility() {
         if (!selectedAttacker) {
           logMessage("No minion selected for ability activation.");
@@ -821,7 +672,51 @@ ai.currentMana = ai.maxMana;
         selectedAttacker = null;
         updateUI();
       }
-      
+
+      /***** UPGRADE (COMBINE) UNITS *****/
+      function upgradeUnits() {
+        // Check for any unit type with 2 or more on player's battlefield.
+        let counts = {};
+        player.battlefield.forEach((unit) => {
+          counts[unit.name] = (counts[unit.name] || 0) + 1;
+        });
+        let upgradable = Object.keys(counts).filter(name => counts[name] >= 2);
+        if (upgradable.length === 0) {
+          logMessage("No units available for upgrade.");
+          return;
+        }
+        // Prompt the player to choose one of the available unit types.
+        let choice = prompt("Enter the name of the unit type to upgrade from: " + upgradable.join(", "));
+        if (!choice || !upgradable.includes(choice)) {
+          logMessage("Invalid choice.");
+          return;
+        }
+        // Combine all units of that type.
+        let units = player.battlefield.filter(u => u.name === choice || u.name === choice + " (Upgraded)");
+        if (units.length < 2) {
+          logMessage("Not enough units to upgrade.");
+          return;
+        }
+        let totalAttack = units.reduce((sum, u) => sum + u.attack, 0);
+        let totalHP = units.reduce((sum, u) => sum + u.currentHP, 0);
+        // Add bonus: +1 to attack and HP.
+        totalAttack += 1;
+        totalHP += 1;
+        // Remove these units from battlefield.
+        player.battlefield = player.battlefield.filter(u => u.name !== choice && u.name !== (choice + " (Upgraded)"));
+        // Add the new upgraded unit.
+        let upgradedUnit = Object.assign({}, cardTemplates[units[0].cardKey || choice]);
+        upgradedUnit.attack = totalAttack;
+        upgradedUnit.hp = totalHP;
+        upgradedUnit.currentHP = totalHP;
+        upgradedUnit.name = choice + " (Upgraded)";
+        upgradedUnit.attacked = false;
+        upgradedUnit.abilityUsed = false;
+        player.battlefield.push(upgradedUnit);
+        logMessage("Upgraded " + units.length + " " + choice + "(s) into one " + upgradedUnit.name + " with " + totalAttack + " attack and " + totalHP + " HP.");
+        updateUI();
+      }
+
       /***** ABILITY FUNCTIONS *****/
       function activateAbility(side, index) {
         let p = (side === "player") ? player : ai;
@@ -832,7 +727,7 @@ ai.currentMana = ai.maxMana;
           case "explode":
             opponent.battlefield.forEach(m => m.currentHP -= 1);
             opponent.hero.hp -= 1;
-            logMessage(minion.name + " explodes, dealing 1 damage to all enemy units and hero!");
+            logMessage(minion.name + " explodes, dealing 1 damage to all enemy units and Hero!");
             p.discard.push(minion.cardKey);
             p.battlefield.splice(index, 1);
             break;
@@ -885,7 +780,7 @@ ai.currentMana = ai.maxMana;
           case "jump":
             opponent.hero.hp -= 1;
             opponent.battlefield.forEach(m => m.currentHP -= 1);
-            logMessage(minion.name + " jumps, dealing 1 damage to enemy hero and all enemy minions!");
+            logMessage(minion.name + " jumps, dealing 1 damage to enemy Hero and all enemy minions!");
             minion.abilityUsed = true;
             break;
           case "longshot":
@@ -924,12 +819,17 @@ ai.currentMana = ai.maxMana;
             logMessage(minion.name + " unleashes Explosive Wither, dealing 2 damage to all enemies!");
             minion.abilityUsed = true;
             break;
+          case "aoe":
+            opponent.battlefield.forEach(m => m.currentHP -= minion.attack);
+            logMessage(minion.name + " unleashes its fiery breath, dealing " + minion.attack + " damage to all enemy minions!");
+            minion.abilityUsed = true;
+            break;
           default:
             logMessage("No ability to activate.");
         }
         opponent.battlefield = opponent.battlefield.filter(m => m.currentHP > 0);
       }
-      
+
       /***** BIOME EFFECTS & EFFECTIVE ATTACK *****/
       function getEffectiveAttack(unit, owner) {
         let effective = unit.attack;
@@ -943,34 +843,49 @@ ai.currentMana = ai.maxMana;
         }
         return effective;
       }
-      
+
       /***** AI TURN – USE ALL AVAILABLE MANA *****/
       function aiTurn() {
         function aiAction() {
-          if (ai.currentMana <= 0) {
-            endAITurn();
-            return;
+          // Check if any valid action exists.
+          let validActionExists = false;
+          for (let i = 0; i < ai.hand.length; i++) {
+            let cardTemplate = cardTemplates[ai.hand[i]];
+            if (cardTemplate.type === "minion" && ai.battlefield.length >= MAX_MINIONS) continue;
+            if (ai.currentMana >= cardTemplate.cost) { validActionExists = true; break; }
           }
+          if (!validActionExists) {
+            for (let m of ai.battlefield) {
+              if (!m.attacked && ai.currentMana >= ATTACK_COST) { validActionExists = true; break; }
+            }
+          }
+          if (!validActionExists) {
+            for (let m of ai.battlefield) {
+              if (m.ability && !m.abilityUsed) { validActionExists = true; break; }
+            }
+          }
+          if (!validActionExists) { endAITurn(); return; }
+          if (ai.currentMana <= 0) { endAITurn(); return; }
           let actionTaken = false;
           // 1. Try to play a card.
           for (let i = 0; i < ai.hand.length; i++) {
             let cardKey = ai.hand[i];
             let cardTemplate = cardTemplates[cardKey];
+            if (cardTemplate.type === "minion" && ai.battlefield.length >= MAX_MINIONS) continue;
             if (ai.currentMana >= cardTemplate.cost) {
               ai.currentMana -= cardTemplate.cost;
               ai.hand.splice(i, 1);
               if (cardTemplate.type === "biome") {
                 ai.biome = Object.assign({}, cardTemplate);
                 logMessage("AI sets its biome to " + cardTemplate.name + ".");
-              }
-              else if (cardTemplate.type === "minion") {
+              } else if (cardTemplate.type === "minion") {
                 let minion = Object.assign({}, cardTemplate);
                 minion.cardKey = cardKey;
                 minion.currentHP = cardTemplate.hp;
                 minion.attacked = false;
                 minion.abilityUsed = false;
                 ai.battlefield.push(minion);
-                logMessage("AI summoned a " + minion.name + ".");
+                logMessage("AI summoned " + minion.name + ".");
               } else if (cardTemplate.type === "spell") {
                 if (cardTemplate.effect === "draw2") {
                   drawCard("ai");
@@ -979,7 +894,7 @@ ai.currentMana = ai.maxMana;
                 } else if (cardTemplate.effect === "lightning") {
                   if (player.battlefield.length > 0) {
                     player.battlefield[0].currentHP -= cardTemplate.damage;
-                    logMessage("AI cast Lightning on your " + player.battlefield[0].name + " for " + cardTemplate.damage + " damage.");
+                    logMessage("AI cast Lightning Bolt on your " + player.battlefield[0].name + " for " + cardTemplate.damage + " damage.");
                     if (player.battlefield[0].currentHP <= 0) {
                       logMessage("Your " + player.battlefield[0].name + " was destroyed.");
                       player.discard.push(player.battlefield[0].cardKey);
@@ -987,20 +902,22 @@ ai.currentMana = ai.maxMana;
                     }
                   } else {
                     player.hero.hp -= cardTemplate.damage;
-                    logMessage("AI cast Lightning on your Villager for " + cardTemplate.damage + " damage.");
+                    logMessage("AI cast Lightning Bolt on your Hero for " + cardTemplate.damage + " damage.");
                   }
                 } else if (cardTemplate.effect === "heal") {
                   ai.hero.hp += cardTemplate.amount;
-                  logMessage("AI cast Heal and restored " + cardTemplate.amount + " HP to its Villager.");
+                  logMessage("AI cast Heal and restored " + cardTemplate.amount + " HP to its Hero.");
+                } else if (cardTemplate.effect === "barrier") {
+                  ai.hero.barrierTurns = 2;
+                  logMessage("AI cast Barrier. Its Hero is shielded for 2 turns.");
                 }
               }
-              // Recycle played card.
               ai.discard.push(cardKey);
               actionTaken = true;
               break;
             }
           }
-          // 2. If no card was played, try to attack.
+          // 2. Try to attack.
           if (!actionTaken) {
             for (let i = 0; i < ai.battlefield.length; i++) {
               let minion = ai.battlefield[i];
@@ -1018,9 +935,18 @@ ai.currentMana = ai.maxMana;
                   }
                   let damageToDefender = Math.floor(attackerDamage * multiplier);
                   let damageToAttacker = defenderDamage;
-                  defender.currentHP -= damageToDefender;
+                  if (damageToDefender === 0) {
+                    if (player.hero.barrierTurns > 0) {
+                      logMessage("Your Hero's Barrier prevented damage.");
+                    } else {
+                      defender.attack = Math.max(0, defender.attack - 1);
+                      logMessage("AI's " + minion.name + " attacked but did 0 damage. Your " + defender.name + "'s attack reduced by 1.");
+                    }
+                  } else {
+                    defender.currentHP -= damageToDefender;
+                    logMessage("AI's " + minion.name + " attacked your " + defender.name + " (Damage: " + damageToDefender + " vs " + damageToAttacker + ").");
+                  }
                   minion.currentHP -= damageToAttacker;
-                  logMessage("AI's " + minion.name + " attacked your " + defender.name + " (Damage: " + damageToDefender + " vs " + damageToAttacker + ").");
                   if (defender.currentHP <= 0) {
                     logMessage("Your " + defender.name + " was destroyed.");
                     player.discard.push(defender.cardKey);
@@ -1028,8 +954,12 @@ ai.currentMana = ai.maxMana;
                   }
                 } else {
                   let dmg = getEffectiveAttack(minion, "ai");
-                  player.hero.hp -= dmg;
-                  logMessage("AI's " + minion.name + " attacked your Villager for " + dmg + " damage.");
+                  if (player.hero.barrierTurns > 0) {
+                    logMessage("Your Hero's Barrier prevented damage from AI's " + minion.name + ".");
+                  } else {
+                    player.hero.hp -= dmg;
+                    logMessage("AI's " + minion.name + " attacked your Hero for " + dmg + " damage.");
+                  }
                 }
                 minion.attacked = true;
                 actionTaken = true;
@@ -1037,7 +967,7 @@ ai.currentMana = ai.maxMana;
               }
             }
           }
-          // 3. If no card or attack, try to use an ability.
+          // 3. Try to use an ability.
           if (!actionTaken) {
             for (let i = 0; i < ai.battlefield.length; i++) {
               let minion = ai.battlefield[i];
@@ -1048,7 +978,7 @@ ai.currentMana = ai.maxMana;
               }
             }
           }
-          if (ai.currentMana > 0) {
+          if (ai.currentMana > 0 && actionTaken) {
             setTimeout(aiAction, 800);
           } else {
             endAITurn();
@@ -1056,45 +986,46 @@ ai.currentMana = ai.maxMana;
         }
         aiAction();
       }
-      
+
       function endAITurn() {
         checkVictory();
         ai.battlefield.forEach(m => { m.attacked = false; m.abilityUsed = false; });
         player.battlefield.forEach(m => { m.attacked = false; m.abilityUsed = false; });
         currentTurn = "player";
-        // Ramp player's mana.
         player.maxMana = Math.min(player.maxMana + 1, MAX_MANA);
         if (player.battlefield.some(m => m.name === "Cat")) {
           player.maxMana = Math.min(player.maxMana + 1, MAX_MANA);
         }
         player.currentMana = player.maxMana;
+        ensureMinimumHand("player");
+        if (player.hero.barrierTurns > 0) player.hero.barrierTurns--;
+        if (ai.hero.barrierTurns > 0) ai.hero.barrierTurns--;
         drawCard("player");
         logMessage("Your turn begins.");
         updateUI();
       }
-      
+
       /***** VICTORY CHECK *****/
       function checkVictory() {
         if (player.hero.hp <= 0) {
-          logMessage("Your Villager has been defeated. You lose!");
+          logMessage("Your Hero has been defeated. You lose!");
           currentTurn = "gameover";
         }
         if (ai.hero.hp <= 0) {
-          logMessage("Opponent's Villager has been defeated. You win!");
+          logMessage("Opponent's Hero has been defeated. You win!");
           currentTurn = "gameover";
         }
       }
-      
+
       /***** UI UPDATES *****/
       function updateUI() {
-        document.getElementById("playerHeroHP").innerText = player.hero.hp;
-        document.getElementById("opponentHeroHP").innerText = ai.hero.hp;
+        document.getElementById("playerHeroHP").innerText = player.hero.hp + (player.hero.barrierTurns > 0 ? " (Barrier: " + player.hero.barrierTurns + " turns)" : "");
+        document.getElementById("opponentHeroHP").innerText = ai.hero.hp + (ai.hero.barrierTurns > 0 ? " (Barrier: " + ai.hero.barrierTurns + " turns)" : "");
         document.getElementById("playerMana").innerText = player.currentMana + " / " + player.maxMana;
         document.getElementById("opponentMana").innerText = ai.currentMana + " / " + ai.maxMana;
-        
         document.getElementById("playerBiome").innerText = player.biome ? player.biome.name : "None";
         document.getElementById("opponentBiome").innerText = ai.biome ? ai.biome.name : "None";
-        
+
         let playerBF = document.getElementById("playerBattlefield");
         playerBF.innerHTML = "";
         player.battlefield.forEach((minion, index) => {
@@ -1105,7 +1036,7 @@ ai.currentMana = ai.maxMana;
           div.onclick = () => selectAttacker(index);
           playerBF.appendChild(div);
         });
-        
+
         let opponentBF = document.getElementById("opponentBattlefield");
         opponentBF.innerHTML = "";
         ai.battlefield.forEach((minion, index) => {
@@ -1116,7 +1047,7 @@ ai.currentMana = ai.maxMana;
           div.onclick = () => { if (selectedAttacker) attackMinion(index); };
           opponentBF.appendChild(div);
         });
-        
+
         let handContainer = document.getElementById("handContainer");
         handContainer.innerHTML = "";
         player.hand.forEach((cardKey, index) => {
@@ -1127,7 +1058,7 @@ ai.currentMana = ai.maxMana;
           div.onclick = () => playCard(index);
           handContainer.appendChild(div);
         });
-        
+
         let opponentHand = document.getElementById("opponentHand");
         opponentHand.innerHTML = "";
         ai.hand.forEach((cardKey, index) => {
@@ -1137,21 +1068,71 @@ ai.currentMana = ai.maxMana;
           div.innerText = card.name + "\nCost: " + card.cost;
           opponentHand.appendChild(div);
         });
-        
+
+        // Display "Upgrade Units" button if any group of same minions (non-hero) exists with 2 or more.
+        let groups = {};
+        player.battlefield.forEach(unit => {
+          if(unit.type === "minion") {
+            groups[unit.name] = (groups[unit.name] || 0) + 1;
+          }
+        });
+        let canUpgrade = Object.values(groups).some(count => count >= 2);
+        document.getElementById("upgradeButton").style.display = canUpgrade ? "inline-block" : "none";
+
         document.getElementById("activateAbilityButton").style.display = (selectedAttacker && selectedAttacker.minion.ability && !selectedAttacker.minion.abilityUsed) ? "inline-block" : "none";
       }
-      
+
       function logMessage(msg) {
         document.getElementById("message").innerText = msg;
       }
-      
-      // If opponent battlefield is clicked (and no enemy minions exist), treat as an attack on the hero.
+
+      // If opponent battlefield is clicked (and no enemy minions exist), treat as attack on the Hero.
       document.getElementById("opponentBattlefield").onclick = function(e) {
         if (ai.battlefield.length === 0 && selectedAttacker) {
           attackHero();
         }
       };
-      
+
+      /***** UPGRADE UNITS (COMBINE) *****/
+      function upgradeUnits() {
+        // Find groups of same minion on player's battlefield.
+        let counts = {};
+        player.battlefield.forEach(u => {
+          if(u.type === "minion") counts[u.name] = (counts[u.name] || 0) + 1;
+        });
+        let upgradable = Object.keys(counts).filter(name => counts[name] >= 2);
+        if (upgradable.length === 0) {
+          logMessage("No units available for upgrade.");
+          return;
+        }
+        let choice = prompt("Enter the unit type to upgrade (" + upgradable.join(", ") + "):");
+        if (!choice || !upgradable.includes(choice)) {
+          logMessage("Invalid choice.");
+          return;
+        }
+        let units = player.battlefield.filter(u => u.name === choice || u.name === (choice + " (Upgraded)"));
+        if (units.length < 2) {
+          logMessage("Not enough units to upgrade.");
+          return;
+        }
+        let totalAttack = units.reduce((sum, u) => sum + u.attack, 0);
+        let totalHP = units.reduce((sum, u) => sum + u.currentHP, 0);
+        totalAttack += 1;
+        totalHP += 1;
+        // Remove these units.
+        player.battlefield = player.battlefield.filter(u => u.name !== choice && u.name !== (choice + " (Upgraded)"));
+        let upgraded = Object.assign({}, cardTemplates[units[0].cardKey || choice]);
+        upgraded.attack = totalAttack;
+        upgraded.hp = totalHP;
+        upgraded.currentHP = totalHP;
+        upgraded.name = choice + " (Upgraded)";
+        upgraded.attacked = false;
+        upgraded.abilityUsed = false;
+        player.battlefield.push(upgraded);
+        logMessage("Upgraded " + units.length + " " + choice + "(s) into one unit with " + totalAttack + " attack and " + totalHP + " HP.");
+        updateUI();
+      }
+
       window.onload = function() {
         populateAvailableCards();
         populateSelectedDeck();
